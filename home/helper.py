@@ -92,12 +92,12 @@ def send_forget_password_mail(email, otp_code):
     msg.attach_alternative(html_content, "text/html")
 
     # ---------- Attach Offline Image ----------
-    logo_path = os.path.join(settings.BASE_DIR, "static/images/Lightcircle.png")
+    logo_path = os.path.join(settings.BASE_DIR, "static/images/Pasted image.png")
 
     with open(logo_path, "rb") as f:
         mime_image = MIMEImage(f.read())
         mime_image.add_header("Content-ID", "<logo_image>")
-        mime_image.add_header("Content-Disposition", "inline", filename="Lightcircle.png")
+        mime_image.add_header("Content-Disposition", "inline", filename="Pasted image.png")
         msg.attach(mime_image)
 
     msg.send()
