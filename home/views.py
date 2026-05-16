@@ -11,6 +11,7 @@ from django.middleware import csrf
 from django.utils import timezone
 from .helper import send_forget_password_mail
 import json, random
+from rest_framework_simplejwt.tokens import RefreshToken
 
 User = get_user_model()
 
@@ -158,21 +159,6 @@ def login_otp_verify(request):
         # Generate JWT Token
         refresh = RefreshToken.for_user(user)
 
-        # Fetch all addresses of this user
-        user_addresses = []
-        for addr in user.addresses.all():
-            user_addresses.append({
-                "id": addr.id,
-                "phone": addr.phone,
-                "address_line1": addr.address_line1,
-                "address_line2": addr.address_line2,
-                "landmark": addr.landmark,
-                "pincode": addr.pincode,
-                "city": addr.city,
-                "state": addr.state,
-                "is_default": addr.is_default
-            })
-
         # Final response
         return JsonResponse({
             'message': 'Login successful',
@@ -181,7 +167,7 @@ def login_otp_verify(request):
             'permission': user.role,
             'refresh': str(refresh),
             'access': str(refresh.access_token),
-            'addresses': user_addresses
+            # 'addresses': user_addresses
         }, status=200)
 
     return JsonResponse({'message': 'Invalid request method'}, status=400)
