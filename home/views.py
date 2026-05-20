@@ -49,93 +49,246 @@ def admin_profile(request):
     
 
 
+# @csrf_exempt
+# def signup(request):
+#     if request.method != 'POST':
+#         return JsonResponse({'message': 'Invalid request method'}, status=405)
+
+#     try:
+#         jsondata = JSONParser().parse(request)
+#         username = jsondata.get('username')
+#         phone = jsondata.get('mobile')
+#         email = jsondata.get('email')
+
+#         if not email:
+#             return JsonResponse({'message': 'Email is required'}, status=400)
+
+#         # Check if user already exists
+#         if User.objects.filter(email=email).exists():
+#             return JsonResponse({'message': 'Email already in use'}, status=400)
+
+#         # Create user
+#         csrf_token = csrf.get_token(request)
+
+#         user = User.objects.create(
+#             username=username,
+#             phone=phone,
+#             email=email,
+#             otp_code=None
+#         )
+
+#         # Save CSRF token on user if needed
+#         user.csrf_token = csrf_token if hasattr(user, 'csrf_token') else None
+#         user.save()
+
+#         # Full image URL
+#         image_url = request.build_absolute_uri(user.image.url) if user.image else None
+
+#         return JsonResponse({
+#             'message': 'Data saved successfully',
+#             'email': user.email,
+#             'mobile':user.phone,
+#             'user_id':user.id,
+#             'csrf_token': csrf_token,
+#             'image': image_url,
+#             'permission': ['User']
+#         }, status=201)
+
+#     except Exception as e:
+#         return JsonResponse({'message': 'Something went wrong', 'error': str(e)}, status=500)
+
+
 @csrf_exempt
 def signup(request):
     if request.method != 'POST':
-        return JsonResponse({'message': 'Invalid request method'}, status=405)
+        return JsonResponse(
+            {'message': 'Invalid request method'},
+            status=405
+        )
 
     try:
-        jsondata = JSONParser().parse(request)
-        username = jsondata.get('username')
-        phone = jsondata.get('mobile')
-        email = jsondata.get('email')
+        # Get form-data values
+        username = request.POST.get('username')
+        phone = request.POST.get('mobile')
+        email = request.POST.get('email')
+        business_name = request.POST.get('business_name')
+        business_category = request.POST.get('business_category')
+        image = request.FILES.get('image')
 
+        # Validate email
         if not email:
-            return JsonResponse({'message': 'Email is required'}, status=400)
+            return JsonResponse(
+                {'message': 'Email is required'},
+                status=400
+            )
 
-        # Check if user already exists
+        # Check existing email
         if User.objects.filter(email=email).exists():
-            return JsonResponse({'message': 'Email already in use'}, status=400)
+            return JsonResponse(
+                {'message': 'Email already in use'},
+                status=400
+            )
 
-        # Create user
+        # Generate CSRF token
         csrf_token = csrf.get_token(request)
 
+        # Create user
         user = User.objects.create(
             username=username,
             phone=phone,
             email=email,
-            otp_code=None
+            business_name=business_name,
+            business_category=business_category,
+            image=image,
+            otp_code=None,
+            is_active=False,
+            role='user'
         )
 
-        # Save CSRF token on user if needed
-        user.csrf_token = csrf_token if hasattr(user, 'csrf_token') else None
-        user.save()
-
         # Full image URL
-        image_url = request.build_absolute_uri(user.image.url) if user.image else None
+        image_url = (
+            request.build_absolute_uri(user.image.url)
+            if user.image else None
+        )
 
         return JsonResponse({
             'message': 'Data saved successfully',
+            'user_id': user.id,
+            'username': user.username,
             'email': user.email,
-            'mobile':user.phone,
-            'user_id':user.id,
+            'mobile': user.phone,
+            'business_name': user.business_name,
+            'business_category': user.business_category,
+            'role': user.role,
+            'is_active': user.is_active,
             'csrf_token': csrf_token,
             'image': image_url,
             'permission': ['User']
         }, status=201)
 
     except Exception as e:
-        return JsonResponse({'message': 'Something went wrong', 'error': str(e)}, status=500)
+        return JsonResponse({
+            'message': 'Something went wrong',
+            'error': str(e)
+        }, status=500)
 
+
+# @csrf_exempt
+# def login(request):
+#     if request.method == 'POST':
+#         jsondata = JSONParser().parse(request)
+#         email = jsondata.get('email')
+
+#         if not email:
+#             return JsonResponse({'message': 'Email is required'}, status=400)
+
+#         user = None
+
+#         # 1. Try Myuser
+#         try:
+#             user = User.objects.get(email=email)
+#         except User.DoesNotExist:
+#             return JsonResponse({'message': 'Email not exists !!'}, status=400)
+
+#         # Generate and save OTP
+#         otp_code = generate_otp()
+#         print("Generated OTP:", otp_code)
+
+#         if hasattr(user, 'otp_code'):
+#             user.otp_code = otp_code
+#         elif hasattr(user, 'otp'):
+#             user.otp = otp_code
+#             user.otp_created_at = timezone.now()
+#         else:
+#             return JsonResponse({'message': 'Unable to assign OTP'}, status=500)
+
+#         user.save()
+
+#         # Send OTP
+#         send_forget_password_mail(email, otp_code)
+
+#         return JsonResponse({'message': 'Email sent'}, status=200)
+
+#     else:
+#         return JsonResponse({'message': 'Invalid request method'}, status=400)
 
 @csrf_exempt
 def login(request):
-    if request.method == 'POST':
+    if request.method != 'POST':
+        return JsonResponse(
+            {'message': 'Invalid request method'},
+            status=400
+        )
+
+    try:
         jsondata = JSONParser().parse(request)
         email = jsondata.get('email')
 
+        # Validate email
         if not email:
-            return JsonResponse({'message': 'Email is required'}, status=400)
+            return JsonResponse(
+                {'message': 'Email is required'},
+                status=400
+            )
 
-        user = None
-
-        # 1. Try Myuser
+        # Check user exists
         try:
             user = User.objects.get(email=email)
-        except User.DoesNotExist:
-            return JsonResponse({'message': 'Email not exists !!'}, status=400)
 
-        # Generate and save OTP
+        except User.DoesNotExist:
+            return JsonResponse(
+                {'message': 'Email not exists !!'},
+                status=400
+            )
+        
+        # ================= REJECTED =================
+
+        if user.status == 'rejected':
+
+            return JsonResponse(
+                {
+                    'message': 'Your request has been rejected'
+                },
+                status=403
+            )
+
+        # Check user active or not
+        if not user.is_active:
+            return JsonResponse(
+                {
+                    'message': 'Your account is under review. Please wait for admin approval.'
+                },
+                status=403
+            )
+
+        # Generate OTP
         otp_code = generate_otp()
+
         print("Generated OTP:", otp_code)
 
-        if hasattr(user, 'otp_code'):
-            user.otp_code = otp_code
-        elif hasattr(user, 'otp'):
-            user.otp = otp_code
-            user.otp_created_at = timezone.now()
-        else:
-            return JsonResponse({'message': 'Unable to assign OTP'}, status=500)
-
+        # Save OTP
+        user.otp_code = otp_code
         user.save()
 
-        # Send OTP
+        # Send OTP mail
         send_forget_password_mail(email, otp_code)
 
-        return JsonResponse({'message': 'Email sent'}, status=200)
+        return JsonResponse(
+            {
+                'message': 'OTP sent successfully',
+                'email': user.email
+            },
+            status=200
+        )
 
-    else:
-        return JsonResponse({'message': 'Invalid request method'}, status=400)
+    except Exception as e:
+        return JsonResponse(
+            {
+                'message': 'Something went wrong',
+                'error': str(e)
+            },
+            status=500
+        )
 
 def generate_otp():
     return str(random.randint(1000, 9999))

@@ -30,15 +30,13 @@ class CustomUserManager(BaseUserManager):
         return self.create_user(email, password, **extra_fields)
 
 class User(AbstractBaseUser, PermissionsMixin):
-
-    # ----------------------------
-    # Fields from your Myuser model
-    # ----------------------------
     username = models.CharField(max_length=20, blank=True, null=True)
     phone = models.CharField(max_length=15, blank=True, null=True)
     email = models.EmailField(unique=True)
     otp_code = models.CharField(max_length=6, blank=True, null=True)
     image = models.ImageField(upload_to='avtar/', default='avtar/avtar.png', blank=True, null=True)
+    business_name = models.CharField(max_length=200, blank=True, null=True)
+    business_category = models.CharField(max_length=50, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     ROLE_CHOICES = (
         ('admin', 'Admin'),
@@ -47,10 +45,17 @@ class User(AbstractBaseUser, PermissionsMixin):
         ('user', 'User'),
     )
     role = models.CharField(max_length=10, choices=ROLE_CHOICES, default='user')
+    STATUS_CHOICES = (
+        ('pending', 'Pending'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+    )
 
-    # ----------------------------
-    # Admin flags
-    # ----------------------------
+    status = models.CharField(
+        max_length=10,
+        choices=STATUS_CHOICES,
+        default='pending'
+    )
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)  
 

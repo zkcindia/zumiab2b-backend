@@ -6,4 +6,4 @@ from django.contrib.auth.admin import UserAdmin
 
 @admin.register(User)
 class AdminUser(admin.ModelAdmin):
-    list_display = ['id','username','phone','email','otp_code','image','role','is_active','created_at']
+    list_display = ['id','username','phone','email','otp_code','image','business_name','business_category','role','status','is_active','created_at']
