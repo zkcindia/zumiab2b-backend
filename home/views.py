@@ -1,5 +1,4 @@
 from urllib import request
-
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import api_view, permission_classes
@@ -14,9 +13,23 @@ from django.utils import timezone
 from .helper import send_forget_password_mail
 import json, random
 from rest_framework_simplejwt.tokens import RefreshToken
+from django.http import JsonResponse
+from rest_framework.decorators import api_view
+from rest_framework import status
+from .models import *
+import json
+from django.core.paginator import Paginator, EmptyPage
+from django.utils.text import slugify
+# from .models import Product, ProductImage
+# from django.db.models import Case, When, Value, IntegerField
+from io import StringIO
+import csv
+from django.http import StreamingHttpResponse, HttpResponse
+from django.db import connection
+import logging
+
 
 User = get_user_model()
-
 
 @api_view(['GET', 'PUT'])
 @permission_classes([IsAuthenticated])
@@ -48,56 +61,6 @@ def admin_profile(request):
             "email": user.email,
             "phone": user.phone,
         }, status=status.HTTP_200_OK)
-    
-
-
-# @csrf_exempt
-# def signup(request):
-#     if request.method != 'POST':
-#         return JsonResponse({'message': 'Invalid request method'}, status=405)
-
-#     try:
-#         jsondata = JSONParser().parse(request)
-#         username = jsondata.get('username')
-#         phone = jsondata.get('mobile')
-#         email = jsondata.get('email')
-
-#         if not email:
-#             return JsonResponse({'message': 'Email is required'}, status=400)
-
-#         # Check if user already exists
-#         if User.objects.filter(email=email).exists():
-#             return JsonResponse({'message': 'Email already in use'}, status=400)
-
-#         # Create user
-#         csrf_token = csrf.get_token(request)
-
-#         user = User.objects.create(
-#             username=username,
-#             phone=phone,
-#             email=email,
-#             otp_code=None
-#         )
-
-#         # Save CSRF token on user if needed
-#         user.csrf_token = csrf_token if hasattr(user, 'csrf_token') else None
-#         user.save()
-
-#         # Full image URL
-#         image_url = request.build_absolute_uri(user.image.url) if user.image else None
-
-#         return JsonResponse({
-#             'message': 'Data saved successfully',
-#             'email': user.email,
-#             'mobile':user.phone,
-#             'user_id':user.id,
-#             'csrf_token': csrf_token,
-#             'image': image_url,
-#             'permission': ['User']
-#         }, status=201)
-
-#     except Exception as e:
-#         return JsonResponse({'message': 'Something went wrong', 'error': str(e)}, status=500)
 
 
 @csrf_exempt
@@ -173,46 +136,6 @@ def signup(request):
             'message': 'Something went wrong',
             'error': str(e)
         }, status=500)
-
-
-# @csrf_exempt
-# def login(request):
-#     if request.method == 'POST':
-#         jsondata = JSONParser().parse(request)
-#         email = jsondata.get('email')
-
-#         if not email:
-#             return JsonResponse({'message': 'Email is required'}, status=400)
-
-#         user = None
-
-#         # 1. Try Myuser
-#         try:
-#             user = User.objects.get(email=email)
-#         except User.DoesNotExist:
-#             return JsonResponse({'message': 'Email not exists !!'}, status=400)
-
-#         # Generate and save OTP
-#         otp_code = generate_otp()
-#         print("Generated OTP:", otp_code)
-
-#         if hasattr(user, 'otp_code'):
-#             user.otp_code = otp_code
-#         elif hasattr(user, 'otp'):
-#             user.otp = otp_code
-#             user.otp_created_at = timezone.now()
-#         else:
-#             return JsonResponse({'message': 'Unable to assign OTP'}, status=500)
-
-#         user.save()
-
-#         # Send OTP
-#         send_forget_password_mail(email, otp_code)
-
-#         return JsonResponse({'message': 'Email sent'}, status=200)
-
-#     else:
-#         return JsonResponse({'message': 'Invalid request method'}, status=400)
 
 @csrf_exempt
 def login(request):
@@ -358,20 +281,11 @@ def resend_otp(request):
             return JsonResponse({'message': 'Error occurred', 'error': str(e)}, status=500)
 
     return JsonResponse({'message': 'Invalid request method'}, status=405)
-#########################Catgory API#########################
 
-from django.http import JsonResponse
-from rest_framework.decorators import api_view
-from rest_framework import status
-from .models import Category
+#################################################  Catgory API  ##########################################################
 
-import json
 @api_view(['GET', 'POST', 'PUT', 'DELETE'])
 def category(request, slug=None):
-
-    # =========================
-    # GET ALL
-    # =========================
     if request.method == 'GET':
 
         if slug is None:
@@ -386,8 +300,6 @@ def category(request, slug=None):
             } for i in categories]
 
             return JsonResponse(data, safe=False)
-
-        # GET SINGLE
         try:
             obj = Category.objects.get(slug=slug)
 
@@ -402,10 +314,6 @@ def category(request, slug=None):
         except Category.DoesNotExist:
             return JsonResponse({"error": "Category not found"}, status=404)
 
-
-    # =========================
-    # CREATE
-    # =========================
     if request.method == 'POST':
         obj = Category.objects.create(
             name=request.data.get('name')
@@ -416,10 +324,6 @@ def category(request, slug=None):
             "id": obj.id
         }, status=201)
 
-
-    # =========================
-    # UPDATE
-    # =========================
     if request.method == 'PUT':
         try:
             obj = Category.objects.get(slug=slug)
@@ -431,22 +335,15 @@ def category(request, slug=None):
         except Category.DoesNotExist:
             return JsonResponse({"error": "not found"}, status=404)
 
-
-    # =========================
-    # DELETE (FIXED)
-    # =========================
     if request.method == 'DELETE':
         try:
-            obj = Category.objects.get(slug=slug)   # ✅ FIXED HERE
+            obj = Category.objects.get(slug=slug)   
             obj.delete()
 
             return JsonResponse({"message": "deleted successfully"}, status=200)
 
         except Category.DoesNotExist:
             return JsonResponse({"error": "not found"}, status=404)
-        
-        ########################################## catogary status changes#############################
-   
 
 @api_view(['PATCH'])
 def category_status_change(request, slug):
@@ -484,13 +381,8 @@ def category_status_change(request, slug):
         }
     })
     
-################################Catigory Publicer Unpublish status changes############################
 @api_view(['GET'])
 def publish_category(request, slug=None):
-
-    # =========================
-    # GET ALL PUBLISHED CATEGORY
-    # =========================
     if slug is None:
         categories = Category.objects.filter(status="Publish").order_by('-created_at')
 
@@ -504,9 +396,6 @@ def publish_category(request, slug=None):
 
         return JsonResponse(data, safe=False)
 
-    # =========================
-    # GET SINGLE PUBLISHED CATEGORY
-    # =========================
     try:
         obj = Category.objects.get(slug=slug, status="Publish")
 
@@ -524,17 +413,10 @@ def publish_category(request, slug=None):
             status=404
         )
         
-        #############################Brand Api#############################
-  
-from .models import Brand
-
+######################################################  Brand Api   #######################################################################
 
 @api_view(['GET', 'POST', 'PUT', 'DELETE'])
 def brand(request, slug=None):
-
-    # =========================
-    # GET ALL
-    # =========================
     if request.method == 'GET':
 
         if slug is None:
@@ -549,10 +431,6 @@ def brand(request, slug=None):
             } for i in brands]
 
             return JsonResponse(data, safe=False)
-
-        # =========================
-        # GET SINGLE
-        # =========================
         try:
             obj = Brand.objects.get(slug=slug)
 
@@ -566,10 +444,7 @@ def brand(request, slug=None):
 
         except Brand.DoesNotExist:
             return JsonResponse({"error": "Brand not found"}, status=404)
-
-    # =========================
-    # CREATE
-    # =========================
+        
     if request.method == 'POST':
         obj = Brand.objects.create(
             name=request.data.get('name')
@@ -580,9 +455,6 @@ def brand(request, slug=None):
             "id": obj.id
         }, status=201)
 
-    # =========================
-    # UPDATE
-    # =========================
     if request.method == 'PUT':
         try:
             obj = Brand.objects.get(slug=slug)
@@ -596,9 +468,6 @@ def brand(request, slug=None):
         except Brand.DoesNotExist:
             return JsonResponse({"error": "not found"}, status=404)
 
-    # =========================
-    # DELETE
-    # =========================
     if request.method == 'DELETE':
         try:
             obj = Brand.objects.get(slug=slug)
@@ -610,7 +479,9 @@ def brand(request, slug=None):
 
         except Brand.DoesNotExist:
             return JsonResponse({"error": "not found"}, status=404)    
-############################status Brand changes #############################
+        
+#################################################  status Brand changes ###############################################################
+
 @api_view(['PATCH'])
 def brand_status_change(request, slug):
 
@@ -646,13 +517,12 @@ def brand_status_change(request, slug):
             "status": brand.status
         }
     })  
-######################## Brand Publices get api #############################
+
+#################################################### Brand Publices get api ##############################################################
+
 @api_view(['GET'])
 def publish_brand(request, slug=None):
 
-    # =========================
-    # GET ALL PUBLISHED BRAND
-    # =========================
     if slug is None:
         brands = Brand.objects.filter(status="Publish").order_by('-created_at')
 
@@ -666,9 +536,6 @@ def publish_brand(request, slug=None):
 
         return JsonResponse(data, safe=False)
 
-    # =========================
-    # GET SINGLE PUBLISHED BRAND
-    # =========================
     try:
         obj = Brand.objects.get(slug=slug, status="Publish")
 
@@ -686,59 +553,63 @@ def publish_brand(request, slug=None):
             status=404
         )
         
-        
-#######################3 Product API #############################
-
-from .models import Product
-import json
-from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
-from django.core.paginator import Paginator, EmptyPage
-from django.utils.text import slugify
-from .models import Product, ProductImage
+################################################## Product API #####################################################################
 from django.db.models import Case, When, Value, IntegerField
 
-@csrf_exempt
-
+@api_view(["GET", "POST","PUT","DELETE"])
+# @permission_classes([IsAuthenticated])
 def product_api(request, slug=None):
 
-    # =========================
-    # GET (LIST + SINGLE)
-    # =========================
+    # ================= GET =================
     if request.method == "GET":
 
-        # -------- SINGLE PRODUCT --------
         if slug:
             try:
-                p = Product.objects.get(slug=slug)
-                images = ProductImage.objects.filter(product=p)
+                product = Product.objects.select_related(
+                    "brand",
+                    "category"
+                ).get(slug=slug)
+
+                images = ProductImage.objects.filter(product=product)
 
                 return JsonResponse({
-                    # "id": p.id,
-                    "name": p.name or "",
-                    "slug": p.slug or "", 
-                    "item_code": p.item_code or "",
-                    "brand": p.brand or "",
-                    "description": p.description or "",
-                    "category": p.category or "",
-                    "status": p.status or "",
+                    "status": True,
+                    "data": {
+                        "id": product.id,
+                        "name": product.name,
+                        "slug": product.slug,
+                        "item_code": product.item_code,
 
-                    "mrp": str(p.mrp or 0),
-                    "retail": str(p.retail or 0),
-                    "b2b": str(p.b2b or 0),
+                        "brand": {
+                            "id": product.brand.id,
+                            "name": product.brand.name
+                        } if product.brand else None,
 
-                    "sku": p.sku or "",
-                    "stock_quantity": p.stock_quantity or 0,
-                    "min_order_qty": p.min_order_qty or 0,
+                        "category": {
+                            "id": product.category.id,
+                            "name": product.category.name
+                        } if product.category else None,
 
-                    "is_best_seller": bool(p.is_best_seller),
-                    "is_available_on_order": bool(p.is_available_on_order),
-                    "is_active": bool(p.is_active),
+                        "description": product.description,
+                        "status": product.status,
 
-                    "images": [
-                        request.build_absolute_uri(i.image.url)
-                        for i in images
-                    ]
+                        "mrp": str(product.mrp),
+                        "retail": str(product.retail),
+                        "b2b": str(product.b2b),
+
+                        "sku": product.sku,
+                        "stock_quantity": product.stock_quantity,
+                        "min_order_qty": product.min_order_qty,
+
+                        # "is_best_seller": product.is_best_seller,/
+                        # "is_available_on_order": product.is_available_on_order,
+                        "is_active": product.is_active,
+
+                        "images": [
+                            request.build_absolute_uri(img.image.url)
+                            for img in images
+                        ]
+                    }
                 })
 
             except Product.DoesNotExist:
@@ -747,19 +618,20 @@ def product_api(request, slug=None):
                     "message": "Product not found"
                 }, status=404)
 
-        # -------- LIST PRODUCTS --------
         page = int(request.GET.get("page", 1))
-        limit = int(request.GET.get("limit", 5))
+        limit = int(request.GET.get("limit", 10))
 
-        # products = Product.objects.all().order_by("-id")
-        products = Product.objects.annotate(
-        status_order=Case(
-            When(status='Publish', then=Value(1)),
-            When(status='Unpublish', then=Value(2)),
-            default=Value(3),
-            output_field=IntegerField()
-        )
-    ).order_by('status_order', '-id')
+        products = Product.objects.select_related(
+            "brand",
+            "category"
+        ).annotate(
+            status_order=Case(
+                When(status="Publish", then=Value(1)),
+                When(status="Unpublish", then=Value(2)),
+                default=Value(3),
+                output_field=IntegerField()
+            )
+        ).order_by("status_order", "-id")
 
         paginator = Paginator(products, limit)
 
@@ -774,30 +646,40 @@ def product_api(request, slug=None):
 
         result = []
 
-        for p in page_data:
+        for product in page_data:
 
-            images = ProductImage.objects.filter(product=p)
+            images = ProductImage.objects.filter(product=product)
 
             result.append({
-                # "id": p.id,
-                "name": p.name or "",
-                "slug": p.slug or "",
-                "item_code": p.item_code or "",
-                "brand": p.brand or "",
-                "description": p.description or "",
-                "category": p.category or "",
-                "status": p.status or "",
-                "mrp": str(p.mrp or 0),
-                "retail": str(p.retail or 0),
-                "b2b": str(p.b2b or 0),
-            
-                "sku": p.sku or "",
-                "stock_quantity": p.stock_quantity or 0,
-                "min_order_qty": p.min_order_qty or 0,
+                "id": product.id,
+                "name": product.name,
+                "slug": product.slug,
+                "item_code": product.item_code,
+
+                "brand": {
+                    "id": product.brand.id,
+                    "name": product.brand.name
+                } if product.brand else None,
+
+                "category": {
+                    "id": product.category.id,
+                    "name": product.category.name
+                } if product.category else None,
+
+                "description": product.description,
+                "status": product.status,
+
+                "mrp": str(product.mrp),
+                "retail": str(product.retail),
+                "b2b": str(product.b2b),
+
+                "sku": product.sku,
+                "stock_quantity": product.stock_quantity,
+                "min_order_qty": product.min_order_qty,
 
                 "images": [
-                    request.build_absolute_uri(i.image.url)
-                    for i in images
+                    request.build_absolute_uri(img.image.url)
+                    for img in images
                 ]
             })
 
@@ -809,107 +691,157 @@ def product_api(request, slug=None):
             "data": result
         })
 
-    # =========================
-    # POST (CREATE)
-    # =========================
+    # ================= POST =================
     if request.method == "POST":
 
-            name = request.POST.get("name")
+        brand = Brand.objects.filter(
+            id=request.data.get("brand")
+        ).first()
 
-            product = Product.objects.create(
-                name=name,
-                slug=slugify(name),   # ✅ SLUG ADDED
+        category = Category.objects.filter(
+            id=request.data.get("category")
+        ).first()
 
-                item_code=request.POST.get("item_code"),
-                brand=request.POST.get("brand"),
-                description=request.POST.get("description"),
-                category=request.POST.get("category"),
-                status=request.POST.get("status") or "publish",    
-                mrp=request.POST.get("mrp") or 0,
-                retail=request.POST.get("retail") or 0,
-                b2b=request.POST.get("b2b") or 0,
+        name = request.data.get("name")
 
-                sku=request.POST.get("sku"),
-                stock_quantity=request.POST.get("stock_quantity") or 0,
-                min_order_qty=request.POST.get("min_order_qty") or 1,
+        product = Product.objects.create(
+            name=name,
+            slug=slugify(name),
 
-                is_best_seller=request.POST.get("is_best_seller") == "true",
-                is_available_on_order=request.POST.get("is_available_on_order") == "true",
-                is_active=request.POST.get("is_active") != "false",
+            item_code=request.data.get("item_code"),
+
+            brand=brand,
+            category=category,
+
+            description=request.data.get("description"),
+
+            status=request.data.get("status", "Publish"),
+
+            mrp=request.data.get("mrp") or 0,
+            retail=request.data.get("retail") or 0,
+            b2b=request.data.get("b2b") or 0,
+
+            sku=request.data.get("sku"),
+
+            stock_quantity=request.data.get("stock_quantity") or 0,
+            min_order_qty=request.data.get("min_order_qty") or 1,
+
+            is_best_seller=request.data.get("is_best_seller", False),
+            is_available_on_order=request.data.get("is_available_on_order", False),
+            is_active=request.data.get("is_active", True),
+        )
+
+        image_urls = []
+
+        for image in request.FILES.getlist("images"):
+
+            obj = ProductImage.objects.create(
+                product=product,
+                image=image
             )
 
+            image_urls.append(
+                request.build_absolute_uri(obj.image.url)
+            )
 
-            images = request.FILES.getlist("images")
+        return JsonResponse({
+            "status": True,
+            "message": "Product created successfully",
 
-            image_list = []
+            "data": {
+                "id": product.id,
+                "name": product.name,
+                "slug": product.slug,
+                "item_code": product.item_code,
 
-            for img in images:
-                obj = ProductImage.objects.create(
-                    product=product,
-                    image=img
-                )
-                image_list.append(request.build_absolute_uri(obj.image.url))
+                "brand": {
+                    "id": product.brand.id,
+                    "name": product.brand.name
+                } if product.brand else None,
 
-            return JsonResponse({
-                "status": True,
-                "message": "Product created successfully",
+                "category": {
+                    "id": product.category.id,
+                    "name": product.category.name
+                } if product.category else None,
 
-                # "id": product.id,
-                "name": product.name or "",
-                "slug": product.slug or "",   # ✅ RETURN SLUG
+                "description": product.description,
+                "status": product.status,
 
-                "item_code": product.item_code or "",
-                "brand": product.brand or "",
-                "category": product.category or "",
-                "description": product.description or "",
-                "mrp": str(product.mrp or 0),
-                "status": product.status or "",
-                "retail": str(product.retail or 0),
-                "b2b": str(product.b2b or 0),
-                "sku": product.sku or "",
-                "stock_quantity": product.stock_quantity or 0,
-                "min_order_qty": product.min_order_qty or 0,
-    # ✅ RETURN DESCRIPTION
-                "images": image_list
-            })
+                "mrp": str(product.mrp),
+                "retail": str(product.retail),
+                "b2b": str(product.b2b),
 
-    # =========================
-    # PUT (UPDATE)
-    # =========================
+                "sku": product.sku,
+                "stock_quantity": product.stock_quantity,
+                "min_order_qty": product.min_order_qty,
+
+                "images": image_urls
+            }
+        })
+
     if request.method == "PUT":
 
         if not pk:
-            return JsonResponse({"status": False, "message": "Product ID required"}, status=400)
+            return JsonResponse({
+                "status": False,
+                "message": "Product ID required"
+            }, status=400)
 
         try:
             product = Product.objects.get(id=pk)
 
-            data = json.loads(request.body or "{}")
+            data = request.data
 
+            # Foreign Keys
+            brand_id = data.get("brand")
+            category_id = data.get("category")
+
+            if brand_id:
+                product.brand = Brand.objects.filter(id=brand_id).first()
+
+            if category_id:
+                product.category = Category.objects.filter(id=category_id).first()
+
+            # Product Fields
             product.name = data.get("name", product.name)
             product.item_code = data.get("item_code", product.item_code)
-            product.brand = data.get("brand", product.brand)
-            product.description = data.get("description", product.description)  # ✅ DESCRIPTION
-            product.category = data.get("category", product.category)
+            product.description = data.get("description", product.description)
 
             product.mrp = data.get("mrp", product.mrp)
             product.retail = data.get("retail", product.retail)
             product.b2b = data.get("b2b", product.b2b)
 
             product.sku = data.get("sku", product.sku)
-            product.stock_quantity = data.get("stock_quantity", product.stock_quantity)
-            product.min_order_qty = data.get("min_order_qty", product.min_order_qty)
+            product.stock_quantity = data.get(
+                "stock_quantity",
+                product.stock_quantity
+            )
+            product.min_order_qty = data.get(
+                "min_order_qty",
+                product.min_order_qty
+            )
 
-            product.is_best_seller = data.get("is_best_seller", product.is_best_seller)
-            product.is_available_on_order = data.get("is_available_on_order", product.is_available_on_order)
-            product.is_active = data.get("is_active", product.is_active)
+            product.status = data.get("status", product.status)
+
+            product.is_best_seller = data.get(
+                "is_best_seller",
+                product.is_best_seller
+            )
+
+            product.is_available_on_order = data.get(
+                "is_available_on_order",
+                product.is_available_on_order
+            )
+
+            product.is_active = data.get(
+                "is_active",
+                product.is_active
+            )
 
             product.save()
 
-            # ADD NEW IMAGES
-            new_images = request.FILES.getlist("images")
-
-            for img in new_images:
+            # Add New Images
+            for img in request.FILES.getlist("images"):
                 ProductImage.objects.create(
                     product=product,
                     image=img
@@ -920,32 +852,50 @@ def product_api(request, slug=None):
             return JsonResponse({
                 "status": True,
                 "message": "Product updated successfully",
-                "id": product.id,
-                "name": product.name or "",
-                "item_code": product.item_code or "",
-                "brand": product.brand or "",
-                "description": product.description or "",
-                "category": product.category or "",
+                "data": {
+                    "id": product.id,
+                    "name": product.name,
+                    "slug": product.slug,
+                    "item_code": product.item_code,
 
-                "mrp": str(product.mrp or 0),
-                "retail": str(product.retail or 0),
-                "b2b": str(product.b2b or 0),
+                    "brand": {
+                        "id": product.brand.id,
+                        "name": product.brand.name
+                    } if product.brand else None,
 
-                "sku": product.sku or "",
-                "stock_quantity": product.stock_quantity or 0,
-                "min_order_qty": product.min_order_qty or 0,
-                "images": [
-                    request.build_absolute_uri(i.image.url)
-                    for i in images
-                ]
+                    "category": {
+                        "id": product.category.id,
+                        "name": product.category.name
+                    } if product.category else None,
+
+                    "description": product.description,
+                    "status": product.status,
+
+                    "mrp": str(product.mrp),
+                    "retail": str(product.retail),
+                    "b2b": str(product.b2b),
+
+                    "sku": product.sku,
+                    "stock_quantity": product.stock_quantity,
+                    "min_order_qty": product.min_order_qty,
+
+                    "is_best_seller": product.is_best_seller,
+                    "is_available_on_order": product.is_available_on_order,
+                    "is_active": product.is_active,
+
+                    "images": [
+                        request.build_absolute_uri(i.image.url)
+                        for i in images
+                    ]
+                }
             })
 
         except Product.DoesNotExist:
-            return JsonResponse({"status": False, "message": "Product not found"}, status=404)
+            return JsonResponse({
+                "status": False,
+                "message": "Product not found"
+            }, status=404)
 
-    # =========================
-    # DELETE
-    # =========================
     if request.method == "DELETE":
 
         if not slug:
@@ -969,39 +919,9 @@ def product_api(request, slug=None):
                 "status": False,
                 "message": "Product not found"
             }, status=404)
-###################################product status changes##################################
-# @csrf_exempt
-# def product_status_api(request, slug):
+        
+#################################################  product status changes  #####################################################
 
-#     if request.method == "POST":
-#         try:
-#             p = Product.objects.get(slug=slug)
-
-#             new_status = request.POST.get("status")  # Publish / Unpublish
-
-#             if new_status not in ["Publish", "Unpublish"]:
-#                 return JsonResponse({
-#                     "status": False,
-#                     "message": "Invalid status"
-#                 }, status=400)
-
-#             p.status = new_status
-#             p.save()
-
-#             return JsonResponse({
-#                 "status": True,
-#                 "message": "Status updated successfully",
-#                 "product": {
-#                     "slug": p.slug,
-#                     "status": p.status
-#                 }
-#             })
-
-#         except Product.DoesNotExist:
-#             return JsonResponse({
-#                 "status": False,
-#                 "message": "Product not found"
-#             }, status=404)
 @csrf_exempt
 def product_status_api(request, slug):
     if request.method == "POST":
@@ -1043,7 +963,7 @@ def product_status_api(request, slug):
 ####################### product  Publis  list api #############################
 
 @api_view(['GET'])
-def product_list_api(request):
+def product_list(request):
 
     products = Product.objects.filter(status="Publish").order_by('-id')
 
@@ -1071,8 +991,15 @@ def product_list_api(request):
 
             "sku": p.sku,   
             "status": p.status,
-            "brand": p.brand,
-            "category": p.category,
+            "brand": {
+                "id": p.brand.id,
+                "name": p.brand.name
+            } if p.brand else None,
+
+            "category": {
+                "id": p.category.id,
+                "name": p.category.name
+            } if p.category else None,
             "description": p.description,
             "stock_quantity": p.stock_quantity,
             
@@ -1087,48 +1014,8 @@ def product_list_api(request):
         "total": len(data),
         "data": data
     })
-    ######################## Category Datils Api #############################
-#     from django.http import JsonResponse
-# from .models import Category
 
-# # =========================
-# # FILTER CATEGORY API
-# # =========================
-# def category_list_api(request):
-
-#     # QUERY PARAM
-#     name = request.GET.get("name")
-
-#     categories = Category.objects.all().order_by('-id')
-
-#     # FILTER BY CATEGORY NAME
-#     if name:
-#         categories = categories.filter(name__icontains=name)
-
-#     data = []
-
-#     for c in categories:
-
-#         data.append({
-#             "id": c.id,
-#             "name": c.name or "",
-#             "slug": c.slug or "",
-#             "status": c.status or "",
-#             "created_at": c.created_at,
-#         })
-
-#     return JsonResponse({
-#         "status": True,
-#         "total": len(data),
-#         "data": data
-#     })
- ######################################Export api######################################
-from io import StringIO
-
-import csv
-from django.http import StreamingHttpResponse, HttpResponse
-from django.db import connection
-import logging
+####################################################  Export api   ##################################################################
 
 logger = logging.getLogger(__name__)
 
@@ -1191,4 +1078,570 @@ def export_customers(request):
     except Exception as e:
         logger.error(str(e))
         return HttpResponse(f"Error: {str(e)}", status=500)
+    
 
+################################################### Cart #################################################################
+from django.shortcuts import get_object_or_404
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def add_to_cart(request):
+    user = request.user
+
+    product_id = request.data.get("product_id")
+    quantity = int(request.data.get("quantity", 1))
+
+    if not product_id:
+        return Response({
+            "status": False,
+            "message": "product_id is required"
+        }, status=400)
+
+    # ======================
+    # GET PRODUCT
+    # ======================
+    product = get_object_or_404(Product, id=product_id)
+
+    # ======================
+    # CART (USER MUST BE AUTHENTICATED)
+    # ======================
+    cart, _ = Cart.objects.get_or_create(user=user)
+
+    # ======================
+    # ADD / UPDATE CART ITEM
+    # ======================
+    cart_item, created = CartItem.objects.get_or_create(
+        cart=cart,
+        product=product,
+        defaults={"quantity": quantity}
+    )
+
+    if not created:
+        cart_item.quantity += quantity
+
+    cart_item.save()
+
+    # ======================
+    # PRODUCT IMAGES
+    # ======================
+    images = ProductImage.objects.filter(product=product)
+
+    image_list = [
+        request.build_absolute_uri(img.image.url)
+        for img in images
+    ]
+
+    # ======================
+    # RESPONSE
+    # ======================
+    return Response({
+        "status": True,
+        "message": "Product added to cart successfully",
+        "data": {
+            "id": product.id,
+            "name": product.name,
+            "slug": product.slug,
+            "item_code": product.item_code,
+            "mrp": str(product.mrp),
+            "retail": str(product.retail),
+            "b2b": str(product.b2b),
+            "sku": product.sku,
+            "status": product.status,
+            "brand": str(product.brand),
+            "category": str(product.category),
+            "description": product.description,
+            "stock_quantity": product.stock_quantity,
+            "min_order_qty": product.min_order_qty,
+            "quantity_added": cart_item.quantity,
+            "images": image_list
+        }
+    }, status=200)
+
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_cart(request):
+    user = request.user
+
+    # ======================
+    # GET CART
+    # ======================
+    cart = Cart.objects.filter(user=user).first()
+
+    if not cart:
+        return Response({
+            "status": False,
+            "message": "Cart not found",
+            "data": []
+        }, status=404)
+
+    # ======================
+    # GET CART ITEMS
+    # ======================
+    cart_items = CartItem.objects.filter(cart=cart)
+
+    data = []
+
+    for item in cart_items:
+        product = item.product
+
+        # ======================
+        # PRODUCT IMAGES
+        # ======================
+        images = ProductImage.objects.filter(product=product)
+
+        image_list = [
+            request.build_absolute_uri(img.image.url)
+            for img in images
+        ]
+
+        # ======================
+        # BUILD ITEM RESPONSE
+        # ======================
+        data.append({
+            "cart_item_id": item.id,
+            "quantity": item.quantity,
+
+            "id": product.id,
+            "name": product.name,
+            "slug": product.slug,
+            "item_code": product.item_code,
+            "mrp": str(product.mrp),
+            "retail": str(product.retail),
+            "b2b": str(product.b2b),
+            "sku": product.sku,
+            "status": product.status,
+            "brand": str(product.brand),
+            "category": str(product.category),
+            "description": product.description,
+            "stock_quantity": product.stock_quantity,
+            "min_order_qty": product.min_order_qty,
+
+            "images": image_list
+        })
+
+    # ======================
+    # RESPONSE
+    # ======================
+    return Response({
+        "status": True,
+        "message": "Cart fetched successfully",
+        "total_items": len(data),
+        "data": data
+    }, status=200)
+    
+#################### delete item from cart api #############################
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def delete_cart_item(request, cart_item_id):
+    user = request.user
+
+    # ======================
+    # GET CART ITEM (ONLY USER'S ITEM)
+    # ======================
+    cart_item = get_object_or_404(
+        CartItem,
+        id=cart_item_id,
+        cart__user=user
+    )
+
+    # ======================
+    # DELETE ITEM
+    # ======================
+    cart_item.delete()
+
+    return Response({
+        "status": True,
+        "message": "Cart item deleted successfully"
+    }, status=200)
+
+
+@api_view(['PUT'])
+@permission_classes([IsAuthenticated])
+def update_cart_quantity(request):
+    user = request.user
+
+    product_id = request.data.get("product_id")
+    quantity = request.data.get("quantity")
+
+    if not product_id:
+        return Response({
+            "status": False,
+            "message": "product_id is required"
+        }, status=400)
+
+    if not quantity:
+        return Response({
+            "status": False,
+            "message": "quantity is required"
+        }, status=400)
+
+    cart = Cart.objects.filter(user=user).first()
+
+    if not cart:
+        return Response({
+            "status": False,
+            "message": "Cart not found"
+        }, status=404)
+
+    cart_item = CartItem.objects.filter(
+        cart=cart,
+        product_id=product_id
+    ).first()
+
+    if not cart_item:
+        return Response({
+            "status": False,
+            "message": "Product not found in cart"
+        }, status=404)
+
+    cart_item.quantity = int(quantity)
+    cart_item.save()
+
+    return Response({
+        "status": True,
+        "message": "Quantity updated successfully",
+        "data": {
+            "product_id": cart_item.product.id,
+            "product_name": cart_item.product.name,
+            "quantity": cart_item.quantity
+        }
+    }, status=200)
+
+######################## message api #############################
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def add_message(request):
+    user = request.user
+
+    message_text = request.data.get("message")
+
+    if not message_text:
+        return Response({
+            "status": False,
+            "message": "Message is required"
+        }, status=400)
+
+    msg = Message.objects.create(
+        user=user,
+        message=message_text
+    )
+
+    return Response({
+        "status": True,
+        "message": "Message added successfully",
+        "data": {
+            "id": msg.id,
+            "user_id": user.id,
+            "message": msg.message,
+            "created_at": msg.created_at
+        }
+    }, status=201)
+
+########################################### Adress api ############################################################
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def address_api(request, slug=None):
+    user = request.user
+
+    if request.method == 'GET' :
+        addresses = Address.objects.filter(user=user).order_by('-is_default', '-created_at')
+
+        data = []
+        for a in addresses:
+            data.append({
+                "id": a.id,
+                # "slug": a.slug,/
+                "full_name": a.full_name,
+                "mobile_number": a.mobile_number,
+                "address_line_1": a.address_line_1,
+                "address_line_2": a.address_line_2,
+                "city": a.city,
+                "state": a.state,
+                "pincode": a.pincode,
+                "is_default": a.is_default,
+                "created_at": a.created_at,
+            })
+
+        return JsonResponse({"status": True, "data": data})
+
+    if request.method == 'POST':
+        data = request.data
+
+        address = Address.objects.create(
+            user=user,
+            full_name=data.get("full_name"),
+            mobile_number=data.get("mobile_number"),
+            address_line_1=data.get("address_line_1"),
+            address_line_2=data.get("address_line_2"),
+            city=data.get("city"),
+            state=data.get("state"),
+            pincode=data.get("pincode"),
+        )
+
+        return JsonResponse({
+            "status": True,
+            "message": "Address created",
+            "slug": address.slug
+        })
+
+@api_view(["PATCH"])
+@permission_classes([IsAuthenticated])
+def edit_address(request, address_id):
+    try:
+        user = request.user
+
+        # Fetch address belonging to this user only
+        try:
+            address = Address.objects.get(id=address_id, user=user)
+        except Address.DoesNotExist:
+            return JsonResponse(
+                {"status": "error", "message": "Address not found"},
+                status=404
+            )
+
+        # Accept JSON or form-data
+        if request.content_type == "application/json":
+            data = json.loads(request.body)
+        else:
+            data = request.POST
+
+        address.full_name = data.get("full_name", address.full_name)
+        address.mobile_number = data.get("mobile_number", address.mobile_number)
+        address.address_line_1 = data.get("address_line_1", address.address_line_1)
+        address.address_line_2 = data.get("address_line_2", address.address_line_2)
+        address.pincode = data.get("pincode", address.pincode)
+        address.city = data.get("city", address.city)
+        address.state = data.get("state", address.state)
+
+        if "is_default" in data:
+            if data["is_default"]:
+                Address.objects.filter(user=user).update(is_default=False)
+            address.is_default = data["is_default"]
+
+        address.save()
+
+        return JsonResponse(
+            {"status": "success", "message": "Address updated successfully"},
+            status=200
+        )
+
+    except Exception as e:
+        return JsonResponse(
+            {"status": "error", "message": str(e)},
+            status=400
+        )
+
+
+@api_view(["DELETE"])
+@permission_classes([IsAuthenticated])
+def delete_address(request, id):
+    try:
+        address = Address.objects.get(id=id, user=request.user)
+    except Address.DoesNotExist:
+        return Response({"error": "Address not found"}, status=404)
+
+    address.delete()
+    return Response({"message": "Address deleted successfully"}, status=200)
+    
+
+@api_view(["GET"])
+def product_list_api(request):
+
+    products = Product.objects.select_related(
+        "brand",
+        "category"
+    ).filter(
+        status="Publish"
+    )
+
+    # Price Filter
+    price_range = request.GET.get("price")
+
+    if price_range:
+        try:
+            min_price, max_price = price_range.split("-")
+
+            products = products.filter(
+                retail__gte=min_price,
+                retail__lte=max_price
+            )
+
+        except ValueError:
+            return JsonResponse({
+                "status": False,
+                "message": "Invalid price format. Use 1000-2000"
+            }, status=400)
+
+    data = []
+
+    for p in products:
+
+        images = ProductImage.objects.filter(product=p)
+
+        data.append({
+            "id": p.id,
+            "name": p.name,
+            "slug": p.slug,
+
+            "brand": {
+                "id": p.brand.id,
+                "name": p.brand.name
+            } if p.brand else None,
+
+            "category": {
+                "id": p.category.id,
+                "name": p.category.name
+            } if p.category else None,
+
+            "retail": str(p.retail),
+
+            "images": [
+                request.build_absolute_uri(img.image.url)
+                for img in images
+            ]
+        })
+
+    return JsonResponse({
+        "status": True,
+        "total": len(data),
+        "data": data
+    })
+
+
+def get_default_address(request, user_id):
+    if request.method != "GET":
+        return JsonResponse(
+            {"error": "Only GET method allowed"},
+            status=405
+        )
+
+    try:
+        address = Address.objects.filter(
+            user_id=user_id,
+            is_default=True
+        ).values(
+            "id",
+            "mobile_number",
+            "address_line_1",
+            "address_line_2",
+            # "landmark",
+            "pincode",
+            "city",
+            "state",
+            "is_default"
+        ).first()
+
+        if not address:
+            return JsonResponse(
+                {"message": "No default address found"},
+                status=404
+            )
+
+        return JsonResponse({
+            "user_id": user_id,
+            "default_address": address
+        }, status=200)
+
+    except Exception as e:
+        return JsonResponse(
+            {"error": str(e)},
+            status=500
+        )
+    
+    
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def change_default_status(request):
+    address_id = request.data.get("id")
+    req_default = request.data.get("is_default")
+
+    if not address_id:
+        return Response({"error": "id is required"}, status=400)
+
+    # Convert string "True"/"False" to boolean
+    is_default = str(req_default).lower() == "true"
+
+    try:
+        address = Address.objects.get(id=address_id, user=request.user)
+    except Address.DoesNotExist:
+        return Response({"error": "Address not found"}, status=404)
+
+    if is_default:
+        # Remove default from other addresses of this user
+        Address.objects.filter(user=request.user, is_default=True).update(is_default=False)
+        # Set this address as default
+        address.is_default = True
+        address.save()
+
+    return Response({
+        "message": "Default address updated",
+        "id": address.id,
+        "is_default": address.is_default
+    })
+
+
+#################################################### COD ###############################################################
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def place_order(request):
+    user = request.user
+
+    address_id = request.data.get("address_id")
+
+    if not address_id:
+        return JsonResponse({
+            "status": False,
+            "message": "Address is required"
+        }, status=400)
+
+    address = get_object_or_404(
+        Address,
+        id=address_id,
+        user=user
+    )
+
+    cart = get_object_or_404(Cart, user=user)
+
+    cart_items = cart.items.all()
+
+    if not cart_items.exists():
+        return JsonResponse({
+            "status": False,
+            "message": "Cart is empty"
+        }, status=400)
+
+    total_amount = 0
+
+    for item in cart_items:
+        total_amount += item.product.retail * item.quantity
+
+
+    order = Order.objects.create(
+        user=user,
+        address=address,
+        total_amount=total_amount,
+        payment_method="COD"
+    )
+
+    for item in cart_items:
+        OrderItem.objects.create(
+            order=order,
+            product=item.product,
+            quantity=item.quantity,
+            price=item.product.retail
+        )
+
+    cart_items.delete()
+
+    return JsonResponse({
+        "status": True,
+        "message": "Order placed successfully",
+        "order_id": order.id,
+        "total_amount": str(order.total_amount),
+        "payment_method": "COD"
+    })

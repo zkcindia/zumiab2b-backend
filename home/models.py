@@ -2,6 +2,8 @@ from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.contrib.auth.models import BaseUserManager
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
+from django.utils.text import slugify
+import uuid
 
 class CustomUserManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
@@ -66,31 +68,7 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self):
         return f"{self.email} ({self.role})"
-
-
-# class Category(models.Model):
-#     name = models.CharField(max_length=100, blank=True, null=True)
-#     slug = models.SlugField(unique=True, blank=True, null=True)
-#     image = models.ImageField(upload_to='Category/', blank=True, null=True)
-#     quantity = models.BigIntegerField(default=0)
-#     STATUS_CHOICES = (
-#         ('Seller', 'Seller'),
-#         ('Admin', 'Admin'),
-#         ('Other', 'Other'),
-#     )
-#     created_by = models.CharField(max_length=10, choices=STATUS_CHOICES)
-#     created_at = models.DateTimeField(auto_now_add=True, db_index=True, blank=True, null=True)
-#     tagid = models.CharField(max_length=50, unique=True, blank=True, null=True)
-#     stock = models.BigIntegerField(default=0)
-#     description = models.TextField(blank=True, null=True)
-
-#     def __str__(self):
-#         return str(self.slug)
     
-    
-from django.db import models
-from django.utils.text import slugify
-import uuid
 
 
 class Category(models.Model):
@@ -122,7 +100,6 @@ class Category(models.Model):
 
     def __str__(self):
         return str(self.name)
-from django.utils.text import slugify
 
 class Brand(models.Model):
     name = models.CharField(max_length=100, blank=True, null=True)
@@ -155,10 +132,9 @@ class Product(models.Model):
     name = models.CharField(max_length=255)
     slug = models.SlugField(unique=True,blank=True,null=True)
     item_code = models.CharField(max_length=100, unique=True)
-    brand = models.CharField(max_length=100, null=True, blank=True)
+    brand = models.ForeignKey(Brand,on_delete=models.SET_NULL,null=True,blank=True)
     description = models.TextField(null=True, blank=True)
-    category = models.CharField(max_length=100, null=True, blank=True)
-
+    category = models.ForeignKey(Category,on_delete=models.SET_NULL,null=True,blank=True)
     mrp = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     retail = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     b2b = models.DecimalField(max_digits=10, decimal_places=2, default=0)
@@ -195,3 +171,79 @@ class ProductImage(models.Model):
 
     def __str__(self):
         return str(self.id)
+    
+from django.conf import settings
+
+class Cart(models.Model):
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='cart')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def _str_(self):
+        return f"Cart - {self.user.email}"
+    
+
+class CartItem(models.Model):
+    cart = models.ForeignKey(Cart, on_delete=models.CASCADE, related_name='items')
+    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    quantity = models.PositiveIntegerField(default=1)
+    added_at = models.DateTimeField(auto_now_add=True)
+
+    def _str_(self):
+        return f"{self.product.name} - {self.quantity}"
+    
+class Message(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    message = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.message
+    
+    
+class Address(models.Model):
+    user = models.ForeignKey( User, on_delete=models.CASCADE,related_name='addresses')
+    slug = models.SlugField(unique=True, blank=True, null=True)
+    full_name = models.CharField(max_length=100)
+    mobile_number = models.CharField(max_length=15)
+    address_line_1 = models.CharField(max_length=255)
+    address_line_2 = models.CharField(max_length=255, blank=True, null=True)
+    city = models.CharField(max_length=100)
+    state = models.CharField(max_length=100)
+    pincode = models.CharField(max_length=10)
+    is_default = models.BooleanField(default=False)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def _str_(self):
+        return self.full_name
+    
+class Order(models.Model):
+    PAYMENT_CHOICES = (
+        ('COD', 'Cash On Delivery'),
+    )
+    STATUS_CHOICES = (
+        ('Pending', 'Pending'),
+        ('Confirmed', 'Confirmed'),
+        ('Shipped', 'Shipped'),
+        ('Delivered', 'Delivered'),
+        ('Cancelled', 'Cancelled'),
+    )
+    user = models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.CASCADE,related_name='orders')
+    address = models.ForeignKey(Address,on_delete=models.SET_NULL,null=True)
+    total_amount = models.DecimalField(max_digits=10,decimal_places=2)
+    payment_method = models.CharField(max_length=20,choices=PAYMENT_CHOICES,default='COD')
+    payment_status = models.BooleanField(default=False)
+    order_status = models.CharField(max_length=20,choices=STATUS_CHOICES,default='Pending')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Order #{self.id}"
+    
+class OrderItem(models.Model):
+    order = models.ForeignKey(Order,on_delete=models.CASCADE,related_name='items')
+    product = models.ForeignKey(Product,on_delete=models.SET_NULL,null=True)
+    quantity = models.PositiveIntegerField(default=1)
+    price = models.DecimalField(max_digits=10,decimal_places=2)
+
+    def __str__(self):
+        return f"{self.product.name} x {self.quantity}"

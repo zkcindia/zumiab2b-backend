@@ -35,7 +35,25 @@ urlpatterns = [
     # path("product/<int:pk>/", product_api), # GET one + PUT + DELETE
     path("product/<slug:slug>/", product_api),
     path('product-status/<slug:slug>/', product_status_api, name='product-status-api'),
-    path('publish-products/', product_list_api),
+    path('publish-products/', product_list),
     path('export-customers/', views.export_customers, name='export-customers'),
+
+    path('cart/', get_cart, name='get-cart'),
+    path('add_to_cart/', add_to_cart),
+
+    path('cart/update/', update_cart_quantity, name='update_cart_quantity'),
+    path('cart/delete/<int:cart_item_id>/', views.delete_cart_item),
+
+    path('add-message/', add_message, name='add_message'),
+
+    path('address/', address_api, name='address_api'),
+    path('address/<slug:slug>/', address_api, name='address_detail'),
+    path("delete-address/<int:id>/", delete_address),
+    path("default-address/<int:user_id>/", get_default_address),
+    path('edit-address/<int:address_id>/', edit_address),
+    path("change-status/", change_default_status),
+    path('price-range/', product_list_api, name='product_list_api'),
+
+    path("place-order/", place_order, name="place_order"),
 
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
