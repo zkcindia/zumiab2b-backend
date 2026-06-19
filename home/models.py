@@ -214,7 +214,7 @@ class Address(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
 
-    def _str_(self):
+    def __str__(self):
         return self.full_name
     
 class Order(models.Model):
@@ -223,6 +223,7 @@ class Order(models.Model):
     )
     STATUS_CHOICES = (
         ('Pending', 'Pending'),
+        ('Processing', 'Processing'),
         ('Confirmed', 'Confirmed'),
         ('Shipped', 'Shipped'),
         ('Delivered', 'Delivered'),

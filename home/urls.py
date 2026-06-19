@@ -36,6 +36,15 @@ urlpatterns = [
     path("product/<slug:slug>/", product_api),
     path('product-status/<slug:slug>/', product_status_api, name='product-status-api'),
     path('publish-products/', product_list),
+    path('products/filter/', ProductPriceFilterAPIView.as_view(),name='product-price-filter'),    ########
+    path('products/bulk-import/',BulkProductImportAPIView.as_view(),name='bulk-product-import'), ############
+    path('products/list/', views.ProductListAPIView.as_view(), name='product-list'), #################
+    path('orders/', views.order_list, name='order-list'),
+    path('order-status/', order_status_list, name='order_status_list'),
+    path('status-wise-orders/', views.status_wise_order_list, name='status-wise-orders'),
+
+    path("orders/<int:order_id>/status/",update_order_status,name="update_order_status"),
+
     path('export-customers/', views.export_customers, name='export-customers'),
 
     path('cart/', get_cart, name='get-cart'),

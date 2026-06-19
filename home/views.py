@@ -1015,6 +1015,347 @@ def product_list(request):
         "data": data
     })
 
+from rest_framework.views import APIView
+
+class ProductPriceFilterAPIView(APIView):
+
+    def get(self, request):
+
+        price_range = request.GET.get('price_range')
+        order = request.GET.get('order', 'asc')
+
+        products = Product.objects.filter(is_active=True)
+
+        # Price Filter
+        if price_range == '0-1000':
+            products = products.filter(retail_gte=0, retail_lte=1000)
+
+        elif price_range == '1000-5000':
+            products = products.filter(retail_gt=1000, retail_lte=5000)
+
+        elif price_range == '5000+':
+            products = products.filter(retail__gt=5000)
+
+        # Order By
+        if order == 'desc':
+            products = products.order_by('-retail')
+        else:
+            products = products.order_by('retail')
+
+        data = list(
+            products.values(
+                'id',
+                'name',
+                'item_code',
+                'retail',
+                'mrp',
+                'b2b',
+                'stock_quantity',
+                'image'
+            )
+        )
+
+        return Response(data)
+
+import pandas as pd
+
+class BulkProductImportAPIView(APIView):
+
+    def post(self, request):
+
+        excel_file = request.FILES.get('file')
+
+        if not excel_file:
+            return Response({"error": "Excel file is required"}, status=400)
+
+        df = pd.read_excel(excel_file)
+
+        results = []
+        created_count = 0
+        updated_count = 0
+        failed_count = 0
+
+        for index, row in df.iterrows():
+
+            row_number = index + 2
+
+            try:
+                name = str(row.get('name', '')).strip()
+                item_code = str(row.get('item_code', '')).strip()
+
+                category_name = str(row.get('category', '')).strip()
+                brand_name = str(row.get('brand', '')).strip()
+
+                mrp = row.get('mrp') or 0
+                retail = row.get('retail') or 0
+                b2b = row.get('b2b') or 0
+                stock = row.get('stock') or 0
+
+                # ---------------- VALIDATION ----------------
+                if not name or name == "nan":
+                    raise Exception("Missing name")
+
+                if not item_code or item_code == "nan":
+                    raise Exception("Missing item_code")
+
+                # ---------------- CATEGORY ----------------
+                category = None
+                if category_name and category_name != "nan":
+                    category, _ = Category.objects.get_or_create(
+                        name=category_name
+                    )
+
+                # ---------------- BRAND (FIXED) ----------------
+                brand = None
+                if brand_name and brand_name != "nan":
+                    slug = slugify(brand_name)
+
+                    brand, _ = Brand.objects.get_or_create(
+                        slug=slug,
+                        defaults={"name": brand_name}
+                    )
+
+                # ---------------- PRODUCT (FIXED LOGIC) ----------------
+                product, created = Product.objects.get_or_create(
+                    item_code=item_code,
+                    defaults={
+                        "name": name,
+                        "category": category,
+                        "brand": brand,
+                        "mrp": float(mrp),
+                        "retail": float(retail),
+                        "b2b": float(b2b),
+                        "stock_quantity": int(stock)
+                    }
+                )
+
+                if not created:
+                    # UPDATE existing product
+                    product.name = name
+                    product.category = category
+                    product.brand = brand
+                    product.mrp = float(mrp)
+                    product.retail = float(retail)
+                    product.b2b = float(b2b)
+                    product.stock_quantity = int(stock)
+                    product.save()
+
+                    updated_count += 1
+
+                    results.append({
+                        "row": row_number,
+                        "status": "success",
+                        "action": "updated",
+                        "item_code": item_code
+                    })
+
+                else:
+                    created_count += 1
+
+                    results.append({
+                        "row": row_number,
+                        "status": "success",
+                        "action": "created",
+                        "item_code": item_code
+                    })
+
+            except Exception as e:
+
+                failed_count += 1
+
+                results.append({
+                    "row": row_number,
+                    "status": "failed",
+                    "item_code": str(row.get("item_code", "")),
+                    "reason": str(e)
+                })
+
+        return Response({
+            "success": True,
+            "total_rows": len(df),
+            "created_count": created_count,
+            "updated_count": updated_count,
+            "failed_count": failed_count,
+            "results": results
+        })
+    
+class ProductListAPIView(APIView):
+
+    def get(self, request):
+
+        products = Product.objects.all()
+
+        results = []
+
+        for product in products:
+
+            image_url = None
+            if product.image:
+                image_url = request.build_absolute_uri(product.image.url)
+
+            results.append({
+                "id": product.id,
+                "name": product.name,
+                "item_code": product.item_code,
+                "category": product.category.name if product.category else None,
+                "brand": product.brand.name if product.brand else None,
+                "mrp": product.mrp,
+                "retail": product.retail,
+                "b2b": product.b2b,
+                "stock_quantity": product.stock_quantity,
+                "image": image_url
+            })
+
+        return Response({
+            "success": True,
+            "total_products": len(results),
+            "data": results
+        })
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def order_list(request):
+
+    orders = Order.objects.all().order_by('-id')
+
+    data = []
+
+    for order in orders:
+        data.append({
+        "order_id": order.id,
+        "status": order.order_status,
+        "customer_name": order.address.full_name if order.address else "",
+        "business_name": order.user.business_name,
+        "email": order.user.email,
+        "phone": order.user.phone,
+        "total_amount": str(order.total_amount),
+        "payment_method": order.payment_method,
+        "address": {
+            "full_name": order.address.full_name if order.address else "",
+            "mobile_number": order.address.mobile_number if order.address else "",
+            "address_line_1": order.address.address_line_1 if order.address else "",
+            "address_line_2": order.address.address_line_2 if order.address else "",
+            "city": order.address.city if order.address else "",
+            "state": order.address.state if order.address else "",
+            "pincode": order.address.pincode if order.address else "",
+        },
+        "created_at": order.created_at,
+    })
+
+    return JsonResponse({
+        "total_orders": orders.count(),
+        "data": data
+    })
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def order_status_list(request):
+    
+    statuses = [
+        {
+            "value": value,
+            "label": label
+        }
+        for value, label in Order.STATUS_CHOICES
+    ]
+
+    return JsonResponse({
+        "status": True,
+        "count": len(statuses),
+        "data": statuses
+    })
+
+@api_view(['PATCH'])
+@permission_classes([IsAuthenticated])
+def update_order_status(request, order_id):
+    try:
+        order = Order.objects.get(id=order_id)
+    except Order.DoesNotExist:
+        return JsonResponse({
+            "status": False,
+            "message": "Order not found"
+        }, status=404)
+    
+    new_status = request.data.get("order_status")
+
+    valid_status = [status[0] for status in Order.STATUS_CHOICES]
+
+    if not new_status:
+        return JsonResponse({
+            "status": False,
+            "message": "Order status is required"
+        }, status=400)
+    if new_status not in valid_status:
+        return JsonResponse({
+            "status": False,
+            "message": f"Invalid status. Allowed: {valid_status}"
+        }, status=400)
+    order.order_status = new_status
+    order.save()
+    return JsonResponse({
+        "status": True,
+        "message":"Order status updated successfully",
+        "data":{
+            "order_id": order.id,
+            "order_status": order.order_status
+        }
+    })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def status_wise_order_list(request):
+
+    order_status = request.GET.get("order_status")
+    limit = int(request.GET.get("limit", 10))
+    offset = int(request.GET.get("offset", 0))
+
+    orders = Order.objects.select_related(
+        "user",
+        "address"
+    ).order_by("-created_at")
+
+    if order_status:
+        orders = orders.filter(order_status=order_status)
+
+    total_count = orders.count()
+
+    orders = orders[offset:offset + limit]
+
+    data = []
+
+    for order in orders:
+        data.append({
+            "order_id": order.id,
+            "customer_name": order.user.get_full_name() if hasattr(order.user, "get_full_name") else "",
+            "email": order.user.email,
+            "total_amount": str(order.total_amount),
+            "payment_method": order.payment_method,
+            "payment_status": order.payment_status,
+            "order_status": order.order_status,
+            "created_at": order.created_at,
+
+            "address": {
+                "full_name": order.address.full_name if order.address else None,
+                "mobile_number": order.address.mobile_number if order.address else None,
+                "address_line_1": order.address.address_line_1 if order.address else None,
+                "address_line_2": order.address.address_line_2 if order.address else None,
+                "city": order.address.city if order.address else None,
+                "state": order.address.state if order.address else None,
+                "pincode": order.address.pincode if order.address else None,
+            }
+        })
+
+    return JsonResponse({
+        "status": True,
+        "total_orders": total_count,
+        "limit": limit,
+        "offset": offset,
+        "data": data
+    })
+
+
+
 ####################################################  Export api   ##################################################################
 
 logger = logging.getLogger(__name__)
