@@ -2193,3 +2193,273 @@ def place_order(request):
         "total_amount": str(order.total_amount),
         "payment_method": "COD"
     })
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def buy_now(request):
+    user = request.user
+
+    address_id = request.data.get("address_id")
+    product_id = request.data.get("product_id")
+    quantity = int(request.data.get("quantity", 1))
+
+    if not address_id:
+        return JsonResponse({
+            "status": False,
+            "message": "Address is required"
+        }, status=400)
+
+    if not product_id:
+        return JsonResponse({
+            "status": False,
+            "message": "Product is required"
+        }, status=400)
+
+    address = get_object_or_404(
+        Address,
+        id=address_id,
+        user=user
+    )
+
+    product = get_object_or_404(
+        Product,
+        id=product_id,
+        is_active=True
+    )
+
+    if quantity < 1:
+        return JsonResponse({
+            "status": False,
+            "message": "Quantity must be greater than 0"
+        }, status=400)
+
+    total_amount = product.retail * quantity
+
+    order = Order.objects.create(
+        user=user,
+        address=address,
+        total_amount=total_amount,
+        payment_method="COD"
+    )
+
+    OrderItem.objects.create(
+        order=order,
+        product=product,
+        quantity=quantity,
+        price=product.retail
+    )
+
+    return JsonResponse({
+        "status": True,
+        "message": "Order placed successfully",
+        "order_id": order.id,
+        "product_id": product.id,
+        "quantity": quantity,
+        "total_amount": str(total_amount),
+        "payment_method": "COD"
+    })
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def create_upi_order(request):
+
+    user = request.user
+
+    address_id = request.data.get("address_id")
+    total_amount = request.data.get("total_amount")
+    payment_method = request.data.get("payment_method")
+    transaction_id = request.data.get("transaction_id")
+    product_id = request.data.get("product_id")
+    quantity = int(request.data.get("quantity", 1))
+    transaction_screenshot = request.FILES.get("transaction_screenshot")
+
+    if not address_id:
+        return JsonResponse({
+            "status": False,
+            "message": "Address is required"
+        }, status=400)
+    
+    if not product_id:
+        return JsonResponse({
+            "status": False,
+            "message": "Product is required"
+        }, status=400)
+
+    if not total_amount:
+        return JsonResponse({
+            "status": False,
+            "message": "Total amount is required"
+        }, status=400)
+
+    if payment_method != "UPI":
+        return JsonResponse({
+            "status": False,
+            "message": "Payment method must be UPI"
+        }, status=400)
+
+    if not transaction_id:
+        return JsonResponse({
+            "status": False,
+            "message": "Transaction ID is required"
+        }, status=400)
+
+    if not transaction_screenshot:
+        return JsonResponse({
+            "status": False,
+            "message": "Transaction screenshot is required"
+        }, status=400)
+
+    address = get_object_or_404(
+        Address,
+        id=address_id,
+        user=user
+    )
+    product = get_object_or_404(
+        Product,
+        id=product_id,
+        is_active=True
+    )
+    if quantity < 1:
+        return JsonResponse({
+            "status": False,
+            "message": "Quantity must be greater than 0"
+        }, status=400)
+    
+    total_amount = product.retail * quantity
+
+    order = Order.objects.create(
+        user=user,
+        address=address,
+        total_amount=total_amount,
+        payment_method="UPI",
+        payment_status=False,  # Admin verifies later
+        transaction_id=transaction_id,
+        transaction_screenshot=transaction_screenshot
+    )
+    OrderItem.objects.create(
+        order=order,
+        product=product,
+        quantity=quantity,
+        price=product.retail
+    )
+
+    return JsonResponse({
+        "status": True,
+        "message": "Order created successfully",
+        "order_id": order.id,
+        "payment_method": order.payment_method,
+        "transaction_id": order.transaction_id,
+        "order_status": order.order_status,
+        "payment_status": order.payment_status,
+        "total_amount": str(order.total_amount),
+        "transaction_screenshot": request.build_absolute_uri(
+            order.transaction_screenshot.url
+        ) if order.transaction_screenshot else None
+    })
+
+
+# @api_view(['GET'])
+# @permission_classes([IsAuthenticated])
+# def my_upi_orders(request):
+
+#     orders = Order.objects.filter(
+#         user=request.user,
+#         payment_method='UPI'
+#     ).order_by('-created_at')
+
+#     data = []
+
+#     for order in orders:
+#         data.append({
+#             "order_id": order.id,
+#             "transaction_id": order.transaction_id,
+#             "transaction_screenshot": (
+#                 request.build_absolute_uri(
+#                     order.transaction_screenshot.url
+#                 )
+#                 if order.transaction_screenshot
+#                 else None
+#             ),
+#             "payment_status": order.payment_status,
+#             "order_status": order.order_status,
+#             "total_amount": str(order.total_amount),
+#             "created_at": order.created_at
+#         })
+
+#     return JsonResponse({
+#         "status": True,
+#         "count": len(data),
+#         "data": data
+#     })
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def my_upi_orders(request):
+
+    orders = Order.objects.filter(
+        user=request.user,
+        payment_method='UPI'
+    ).select_related(
+        'user',
+        'address'
+    ).order_by('-created_at')
+
+    data = []
+
+    for order in orders:
+
+        data.append({
+    "order_id": order.id,
+
+    "user": {
+        "id": order.user.id,
+        "username": order.user.username,
+        "email": order.user.email,
+        "phone": order.user.phone,
+        "business_name": order.user.business_name,
+        "business_category": order.user.business_category,
+        "role": order.user.role,
+        "status": order.user.status,
+        "image": (
+            request.build_absolute_uri(order.user.image.url)
+            if order.user.image else None
+        ),
+        "created_at": order.user.created_at
+    },
+
+    "address": {
+        "id": order.address.id if order.address else None,
+        "full_name": order.address.full_name if order.address else None,
+        "mobile_number": order.address.mobile_number if order.address else None,
+        "address_line_1": order.address.address_line_1 if order.address else None,
+        "address_line_2": order.address.address_line_2 if order.address else None,
+        "city": order.address.city if order.address else None,
+        "state": order.address.state if order.address else None,
+        "pincode": order.address.pincode if order.address else None,
+    },
+
+    "payment": {
+        "payment_method": order.payment_method,
+        "transaction_id": order.transaction_id,
+        "transaction_screenshot": (
+            request.build_absolute_uri(order.transaction_screenshot.url)
+            if order.transaction_screenshot else None
+        ),
+        "payment_status": order.payment_status,
+    },
+
+    "order": {
+        "total_amount": str(order.total_amount),
+        "order_status": order.order_status,
+        "created_at": order.created_at,
+    }
+    })
+        
+
+    return JsonResponse({
+        "status": True,
+        "count": len(data),
+        "data": data
+    })

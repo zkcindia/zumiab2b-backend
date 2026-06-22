@@ -220,6 +220,7 @@ class Address(models.Model):
 class Order(models.Model):
     PAYMENT_CHOICES = (
         ('COD', 'Cash On Delivery'),
+        ('UPI',  'UPI')
     )
     STATUS_CHOICES = (
         ('Pending', 'Pending'),
@@ -235,6 +236,10 @@ class Order(models.Model):
     payment_method = models.CharField(max_length=20,choices=PAYMENT_CHOICES,default='COD')
     payment_status = models.BooleanField(default=False)
     order_status = models.CharField(max_length=20,choices=STATUS_CHOICES,default='Pending')
+    
+    transaction_id = models.CharField(max_length=100, blank=True, null=True)
+    transaction_screenshot = models.ImageField(upload_to='transactions/', blank=True, null=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

@@ -71,5 +71,8 @@ urlpatterns = [
     path('price-range/', product_list_api, name='product_list_api'),
 
     path("place-order/", place_order, name="place_order"),
+    path("buy-now/", buy_now, name="buy_now"),
+    path("create-upi-order/",create_upi_order,name="create_upi_order"),
+    path("my-upi-orders/",my_upi_orders,name="my_upi_orders"),
 
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

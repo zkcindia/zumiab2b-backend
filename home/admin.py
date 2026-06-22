@@ -44,7 +44,7 @@ class Address(admin.ModelAdmin):
 
 @admin.register(Order)
 class Order(admin.ModelAdmin):
-    list_display = ['id','user','address','total_amount','payment_method','payment_status','order_status','created_at']
+    list_display = ['id','user','address','total_amount','payment_method','payment_status','order_status','transaction_id','transaction_screenshot','created_at']
 
 @admin.register(OrderItem)
 class OrderItem(admin.ModelAdmin):
