@@ -228,7 +228,8 @@ class Order(models.Model):
         ('Confirmed', 'Confirmed'),
         ('Shipped', 'Shipped'),
         ('Delivered', 'Delivered'),
-        ('Cancelled', 'Cancelled'),
+        ('Rejected', 'Rejected'),
+        # ('Cancelled', 'Cancelled'),/
     )
     user = models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.CASCADE,related_name='orders')
     address = models.ForeignKey(Address,on_delete=models.SET_NULL,null=True)

@@ -75,4 +75,18 @@ urlpatterns = [
     path("create-upi-order/",create_upi_order,name="create_upi_order"),
     path("my-upi-orders/",my_upi_orders,name="my_upi_orders"),
 
+    path("upi-orders-by-date/",upi_orders_by_date,name="upi_orders_by_date"),
+
+    path("my-orders/", my_orders),
+
+    path('upi-order/<int:order_id>/status-change/',upi_order_status_change,name='upi-order-status-change'),
+    path('pending-upi-order-count/',pending_upi_order_count,name='pending-upi-order-count'),
+    path('upi-orders/', views.upi_orders, name='upi-orders'),
+
+    path('public-products-list/', PublicProductListAPIView.as_view()),
+    path('products-by-date/', OrderDateFilterAPIView.as_view()),
+
+    path("cart-item-count/", get_cart_item_count, name="cart-item-count"),
+    path('order-filter/', OrderFilterAPIView.as_view()),
+
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

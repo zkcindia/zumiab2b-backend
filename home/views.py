@@ -241,6 +241,7 @@ def login_otp_verify(request):
         return JsonResponse({
             'message': 'Login successful',
             'email': user.email,
+            'name': user.username,
             'image': user.image.url if user.image else None,
             'permission': user.role,
             'refresh': str(refresh),
@@ -1212,40 +1213,200 @@ class ProductListAPIView(APIView):
             "data": results
         })
 
+# @api_view(['GET'])
+# @permission_classes([IsAuthenticated])
+# def order_list(request):
+
+#     orders = Order.objects.all().order_by('-id')
+
+#     data = []
+
+#     for order in orders:
+#         data.append({
+#         "order_id": order.id,
+#         "status": order.order_status,
+#         "customer_name": order.address.full_name if order.address else "",
+#         "business_name": order.user.business_name,
+#         "email": order.user.email,
+#         "phone": order.user.phone,
+#         "total_amount": str(order.total_amount),
+#         "payment_method": order.payment_method,
+#         "address": {
+#             "full_name": order.address.full_name if order.address else "",
+#             "mobile_number": order.address.mobile_number if order.address else "",
+#             "address_line_1": order.address.address_line_1 if order.address else "",
+#             "address_line_2": order.address.address_line_2 if order.address else "",
+#             "city": order.address.city if order.address else "",
+#             "state": order.address.state if order.address else "",
+#             "pincode": order.address.pincode if order.address else "",
+#         },
+#         "created_at": order.created_at,
+#     })
+
+#     return JsonResponse({
+#         "total_orders": orders.count(),
+#         "data": data
+#     })
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def order_list(request):
 
-    orders = Order.objects.all().order_by('-id')
+    orders = Order.objects.all().prefetch_related(
+        'items__product',
+        'items__product__images'
+    ).order_by('-id')
 
     data = []
 
     for order in orders:
+
+        products = []
+
+        for item in order.items.all():
+
+            product = item.product
+
+            product_images = []
+
+            if product:
+                for img in product.images.all():
+                    product_images.append(
+                        request.build_absolute_uri(img.image.url)
+                    )
+
+            products.append({
+                "order_item_id": item.id,
+                "quantity": item.quantity,
+                "price": str(item.price),
+
+                "product": {
+                    "id": product.id if product else None,
+                    "name": product.name if product else None,
+                    "item_code": product.item_code if product else None,
+                    "retail": str(product.retail) if product else None,
+
+                    "image": (
+                        request.build_absolute_uri(product.image.url)
+                        if product and product.image else None
+                    ),
+
+                    "images": product_images
+                }
+            })
+
         data.append({
-        "order_id": order.id,
-        "status": order.order_status,
-        "customer_name": order.address.full_name if order.address else "",
-        "business_name": order.user.business_name,
-        "email": order.user.email,
-        "phone": order.user.phone,
-        "total_amount": str(order.total_amount),
-        "payment_method": order.payment_method,
-        "address": {
-            "full_name": order.address.full_name if order.address else "",
-            "mobile_number": order.address.mobile_number if order.address else "",
-            "address_line_1": order.address.address_line_1 if order.address else "",
-            "address_line_2": order.address.address_line_2 if order.address else "",
-            "city": order.address.city if order.address else "",
-            "state": order.address.state if order.address else "",
-            "pincode": order.address.pincode if order.address else "",
-        },
-        "created_at": order.created_at,
-    })
+            "order_id": order.id,
+            "status": order.order_status,
+            "transaction_id": order.transaction_id,
+            "customer_name": order.address.full_name if order.address else "",
+            "business_name": order.user.business_name,
+            "email": order.user.email,
+            "phone": order.user.phone,
+            "total_amount": str(order.total_amount),
+            "payment_method": order.payment_method,
+
+            "address": {
+                "full_name": order.address.full_name if order.address else "",
+                "mobile_number": order.address.mobile_number if order.address else "",
+                "address_line_1": order.address.address_line_1 if order.address else "",
+                "address_line_2": order.address.address_line_2 if order.address else "",
+                "city": order.address.city if order.address else "",
+                "state": order.address.state if order.address else "",
+                "pincode": order.address.pincode if order.address else "",
+            },
+
+            "products": products,
+
+            "created_at": order.created_at,
+        })
 
     return JsonResponse({
         "total_orders": orders.count(),
         "data": data
     })
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def my_orders(request):
+
+    orders = Order.objects.filter(
+        user=request.user
+    ).prefetch_related(
+        'items__product',
+        'items__product__images'
+    ).order_by('-id')
+
+    data = []
+
+    for order in orders:
+
+        products = []
+
+        for item in order.items.all():
+
+            product = item.product
+
+            product_images = []
+
+            if product:
+                for img in product.images.all():
+                    product_images.append(
+                        request.build_absolute_uri(img.image.url)
+                    )
+
+            products.append({
+                "order_item_id": item.id,
+                "quantity": item.quantity,
+                "price": str(item.price),
+
+                "product": {
+                    "id": product.id if product else None,
+                    "name": product.name if product else None,
+                    "item_code": product.item_code if product else None,
+                    "retail": str(product.retail) if product else None,
+
+                    "image": (
+                        request.build_absolute_uri(product.image.url)
+                        if product and product.image else None
+                    ),
+
+                    "images": product_images
+                }
+            })
+
+        data.append({
+            "order_id": order.id,
+            "status": order.order_status,
+            "transaction_id": order.transaction_id,
+            "customer_name": order.address.full_name if order.address else "",
+            "business_name": order.user.business_name,
+            "email": order.user.email,
+            "phone": order.user.phone,
+            "total_amount": str(order.total_amount),
+            "payment_method": order.payment_method,
+
+            "address": {
+                "full_name": order.address.full_name if order.address else "",
+                "mobile_number": order.address.mobile_number if order.address else "",
+                "address_line_1": order.address.address_line_1 if order.address else "",
+                "address_line_2": order.address.address_line_2 if order.address else "",
+                "city": order.address.city if order.address else "",
+                "state": order.address.state if order.address else "",
+                "pincode": order.address.pincode if order.address else "",
+            },
+
+            "products": products,
+
+            "created_at": order.created_at,
+        })
+
+    return JsonResponse({
+        "total_orders": orders.count(),
+        "data": data
+    })
+
+
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -1631,6 +1792,83 @@ def export_customers(request):
 ################################################### Cart #################################################################
 from django.shortcuts import get_object_or_404
 
+# @api_view(['POST'])
+# @permission_classes([IsAuthenticated])
+# def add_to_cart(request):
+#     user = request.user
+
+#     product_id = request.data.get("product_id")
+#     quantity = int(request.data.get("quantity", 1))
+
+#     if not product_id:
+#         return Response({
+#             "status": False,
+#             "message": "product_id is required"
+#         }, status=400)
+
+#     # ======================
+#     # GET PRODUCT
+#     # ======================
+#     product = get_object_or_404(Product, id=product_id)
+
+#     # ======================
+#     # CART (USER MUST BE AUTHENTICATED)
+#     # ======================
+#     cart, _ = Cart.objects.get_or_create(user=user)
+
+#     # ======================
+#     # ADD / UPDATE CART ITEM
+#     # ======================
+#     cart_item, created = CartItem.objects.get_or_create(
+#         cart=cart,
+#         product=product,
+#         defaults={"quantity": quantity}
+#     )
+
+#     if not created:
+#         cart_item.quantity += quantity
+
+#     cart_item.save()
+
+#     # ======================
+#     # PRODUCT IMAGES
+#     # ======================
+#     images = ProductImage.objects.filter(product=product)
+
+#     image_list = [
+#         request.build_absolute_uri(img.image.url)
+#         for img in images
+#     ]
+
+#     # ======================
+#     # RESPONSE
+#     # ======================
+#     return Response({
+#         "status": True,
+#         "message": "Product added to cart successfully",
+#         "data": {
+#             "id": product.id,
+#             "name": product.name,
+#             "slug": product.slug,
+#             "item_code": product.item_code,
+#             "mrp": str(product.mrp),
+#             "retail": str(product.retail),
+#             "b2b": str(product.b2b),
+#             "sku": product.sku,
+#             "status": product.status,
+#             "brand": str(product.brand),
+#             "category": str(product.category),
+#             "description": product.description,
+#             "stock_quantity": product.stock_quantity,
+#             "min_order_qty": product.min_order_qty,
+#             "quantity_added": cart_item.quantity,
+#             "images": image_list
+#         }
+#     }, status=200)
+
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def add_to_cart(request):
@@ -1651,7 +1889,7 @@ def add_to_cart(request):
     product = get_object_or_404(Product, id=product_id)
 
     # ======================
-    # CART (USER MUST BE AUTHENTICATED)
+    # GET / CREATE CART
     # ======================
     cart, _ = Cart.objects.get_or_create(user=user)
 
@@ -1670,6 +1908,36 @@ def add_to_cart(request):
     cart_item.save()
 
     # ======================
+    # GET REAL CART COUNT
+    # ======================
+    cart_count = (
+        CartItem.objects
+        .filter(cart=cart)
+        # .aggregate(total=Sum("quantity"))
+        # .get("total")
+    ) .count()
+
+    print("Cart Count =", cart_count)
+
+    # ======================
+    # SEND WEBSOCKET EVENT
+    # ======================
+    channel_layer = get_channel_layer()
+
+    async_to_sync(channel_layer.group_send)(
+        "cart_updates",
+        {
+            "type": "notify",
+            "message": {
+                "type": "cart_count",
+                "count": cart_count
+            }
+        }
+    )
+
+    print("WebSocket Event Sent")
+
+    # ======================
     # PRODUCT IMAGES
     # ======================
     images = ProductImage.objects.filter(product=product)
@@ -1677,6 +1945,7 @@ def add_to_cart(request):
     image_list = [
         request.build_absolute_uri(img.image.url)
         for img in images
+        if img.image
     ]
 
     # ======================
@@ -1685,6 +1954,7 @@ def add_to_cart(request):
     return Response({
         "status": True,
         "message": "Product added to cart successfully",
+        "cart_count": cart_count,
         "data": {
             "id": product.id,
             "name": product.name,
@@ -1695,8 +1965,8 @@ def add_to_cart(request):
             "b2b": str(product.b2b),
             "sku": product.sku,
             "status": product.status,
-            "brand": str(product.brand),
-            "category": str(product.category),
+            "brand": str(product.brand) if product.brand else None,
+            "category": str(product.category) if product.category else None,
             "description": product.description,
             "stock_quantity": product.stock_quantity,
             "min_order_qty": product.min_order_qty,
@@ -1780,13 +2050,38 @@ def get_cart(request):
     }, status=200)
     
 #################### delete item from cart api #############################
+# @api_view(['DELETE'])
+# @permission_classes([IsAuthenticated])
+# def delete_cart_item(request, cart_item_id):
+#     user = request.user
+
+#     # ======================
+#     # GET CART ITEM (ONLY USER'S ITEM)
+#     # ======================
+#     cart_item = get_object_or_404(
+#         CartItem,
+#         id=cart_item_id,
+#         cart__user=user
+#     )
+
+#     # ======================
+#     # DELETE ITEM
+#     # ======================
+#     cart_item.delete()
+
+#     return Response({
+#         "status": True,
+#         "message": "Cart item deleted successfully"
+#     }, status=200)
+
 @api_view(['DELETE'])
 @permission_classes([IsAuthenticated])
 def delete_cart_item(request, cart_item_id):
+
     user = request.user
 
     # ======================
-    # GET CART ITEM (ONLY USER'S ITEM)
+    # GET CART ITEM
     # ======================
     cart_item = get_object_or_404(
         CartItem,
@@ -1794,14 +2089,40 @@ def delete_cart_item(request, cart_item_id):
         cart__user=user
     )
 
+    cart = cart_item.cart
+
     # ======================
     # DELETE ITEM
     # ======================
     cart_item.delete()
 
+    # ======================
+    # UPDATED PRODUCT COUNT
+    # ======================
+    cart_count = CartItem.objects.filter(
+        cart=cart
+    ).count()
+
+    # ======================
+    # WEBSOCKET EVENT
+    # ======================
+    channel_layer = get_channel_layer()
+
+    async_to_sync(channel_layer.group_send)(
+        "cart_updates",
+        {
+            "type": "notify",
+            "message": {
+                "type": "cart_count",
+                "count": cart_count
+            }
+        }
+    )
+
     return Response({
         "status": True,
-        "message": "Cart item deleted successfully"
+        "message": "Cart item deleted successfully",
+        "cart_count": cart_count
     }, status=200)
 
 
@@ -2274,6 +2595,13 @@ def create_upi_order(request):
     product_id = request.data.get("product_id")
     quantity = int(request.data.get("quantity", 1))
     transaction_screenshot = request.FILES.get("transaction_screenshot")
+    print(address_id)
+    print(total_amount)
+    print(payment_method)
+    print(transaction_id)
+    print(product_id)
+    print(quantity)
+    print(transaction_screenshot)
 
     if not address_id:
         return JsonResponse({
@@ -2398,68 +2726,810 @@ def create_upi_order(request):
 @permission_classes([IsAuthenticated])
 def my_upi_orders(request):
 
-    orders = Order.objects.filter(
-        user=request.user,
-        payment_method='UPI'
-    ).select_related(
-        'user',
-        'address'
-    ).order_by('-created_at')
+    if request.user.role == "admin":
+        orders = (
+            Order.objects.filter(
+                payment_method='UPI'
+            )
+            .select_related(
+                'user',
+                'address'
+            )
+            .prefetch_related(
+                'items__product',
+                'items__product__brand',
+                'items__product__category',
+                'items__product__images'
+            )
+            .order_by('-created_at')
+        )
+    else:
+        orders = (
+            Order.objects.filter(
+                user=request.user,
+                payment_method='UPI'
+            )
+            .select_related(
+                'user',
+                'address'
+            )
+            .prefetch_related(
+                'items__product',
+                'items__product__brand',
+                'items__product__category',
+                'items__product__images'
+            )
+            .order_by('-created_at')
+        )
 
     data = []
 
     for order in orders:
 
+        products = []
+
+        for item in order.items.all():
+
+            product = item.product
+
+            product_images = []
+
+            if product:
+                for img in product.images.all():
+                    if img.image:
+                        product_images.append(
+                            request.build_absolute_uri(img.image.url)
+                        )
+
+            products.append({
+                "order_item_id": item.id,
+                "quantity": item.quantity,
+                "price": str(item.price),
+
+                "product": {
+                    "id": product.id if product else None,
+                    "name": product.name if product else None,
+                    "slug": product.slug if product else None,
+                    "item_code": product.item_code if product else None,
+
+                    "brand": (
+                        product.brand.name
+                        if product and product.brand else None
+                    ),
+
+                    "category": (
+                        product.category.name
+                        if product and product.category else None
+                    ),
+
+                    "mrp": (
+                        str(product.mrp)
+                        if product else None
+                    ),
+
+                    "retail": (
+                        str(product.retail)
+                        if product else None
+                    ),
+
+                    "b2b": (
+                        str(product.b2b)
+                        if product else None
+                    ),
+
+                    "sku": (
+                        product.sku
+                        if product else None
+                    ),
+
+                    "stock_quantity": (
+                        product.stock_quantity
+                        if product else None
+                    ),
+
+                    "min_order_qty": (
+                        product.min_order_qty
+                        if product else None
+                    ),
+
+                    # Main Product Image
+                    "image": (
+                        request.build_absolute_uri(product.image.url)
+                        if product and product.image else None
+                    ),
+
+                    # Additional Images
+                    "images": product_images,
+
+                    "status": (
+                        product.status
+                        if product else None
+                    ),
+
+                    "is_active": (
+                        product.is_active
+                        if product else False
+                    ),
+
+                    "is_best_seller": (
+                        product.is_best_seller
+                        if product else False
+                    ),
+
+                    "is_available_on_order": (
+                        product.is_available_on_order
+                        if product else False
+                    ),
+
+                    "created_at": (
+                        product.created_at
+                        if product else None
+                    ),
+
+                    "updated_at": (
+                        product.updated_at
+                        if product else None
+                    )
+                }
+            })
+
         data.append({
-    "order_id": order.id,
+            "order_id": order.id,
 
-    "user": {
-        "id": order.user.id,
-        "username": order.user.username,
-        "email": order.user.email,
-        "phone": order.user.phone,
-        "business_name": order.user.business_name,
-        "business_category": order.user.business_category,
-        "role": order.user.role,
-        "status": order.user.status,
-        "image": (
-            request.build_absolute_uri(order.user.image.url)
-            if order.user.image else None
-        ),
-        "created_at": order.user.created_at
-    },
+            "user": {
+                "id": order.user.id,
+                "username": order.user.username,
+                "email": order.user.email,
+                "phone": order.user.phone,
+                "business_name": order.user.business_name,
+                "business_category": order.user.business_category,
+                "role": order.user.role,
+                "status": order.user.status,
 
-    "address": {
-        "id": order.address.id if order.address else None,
-        "full_name": order.address.full_name if order.address else None,
-        "mobile_number": order.address.mobile_number if order.address else None,
-        "address_line_1": order.address.address_line_1 if order.address else None,
-        "address_line_2": order.address.address_line_2 if order.address else None,
-        "city": order.address.city if order.address else None,
-        "state": order.address.state if order.address else None,
-        "pincode": order.address.pincode if order.address else None,
-    },
+                "image": (
+                    request.build_absolute_uri(order.user.image.url)
+                    if order.user.image else None
+                ),
 
-    "payment": {
-        "payment_method": order.payment_method,
-        "transaction_id": order.transaction_id,
-        "transaction_screenshot": (
-            request.build_absolute_uri(order.transaction_screenshot.url)
-            if order.transaction_screenshot else None
-        ),
-        "payment_status": order.payment_status,
-    },
+                "created_at": order.user.created_at
+            },
 
-    "order": {
-        "total_amount": str(order.total_amount),
-        "order_status": order.order_status,
-        "created_at": order.created_at,
-    }
-    })
-        
+            "address": {
+                "id": order.address.id if order.address else None,
+                "full_name": (
+                    order.address.full_name
+                    if order.address else None
+                ),
+                "mobile_number": (
+                    order.address.mobile_number
+                    if order.address else None
+                ),
+                "address_line_1": (
+                    order.address.address_line_1
+                    if order.address else None
+                ),
+                "address_line_2": (
+                    order.address.address_line_2
+                    if order.address else None
+                ),
+                "city": (
+                    order.address.city
+                    if order.address else None
+                ),
+                "state": (
+                    order.address.state
+                    if order.address else None
+                ),
+                "pincode": (
+                    order.address.pincode
+                    if order.address else None
+                ),
+            },
+
+            "payment": {
+                "payment_method": order.payment_method,
+                "transaction_id": order.transaction_id,
+
+                "transaction_screenshot": (
+                    request.build_absolute_uri(
+                        order.transaction_screenshot.url
+                    )
+                    if order.transaction_screenshot else None
+                ),
+
+                "payment_status": order.payment_status,
+            },
+
+            "order": {
+                "total_amount": str(order.total_amount),
+                "order_status": order.order_status,
+                "created_at": order.created_at,
+            },
+
+            "products": products
+        })
 
     return JsonResponse({
         "status": True,
         "count": len(data),
         "data": data
     })
+
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def upi_orders_by_date(request):
+
+    if request.user.role != "admin":
+        return JsonResponse({
+            "status": False,
+            "message": "Permission denied"
+        }, status=403)
+
+    from_date = request.GET.get("from_date")
+    to_date = request.GET.get("to_date")
+
+    orders = (
+        Order.objects.filter(
+            payment_method='UPI'
+        )
+        .select_related(
+            'user',
+            'address'
+        )
+        .prefetch_related(
+            'items__product',
+            'items__product__brand',
+            'items__product__category',
+            'items__product__images'
+        )
+        .order_by('-created_at')
+    )
+
+    if from_date and to_date:
+        orders = orders.filter(
+            created_at__date__range=[from_date, to_date]
+        )
+
+    data = []
+
+    for order in orders:
+
+        products = []
+
+        for item in order.items.all():
+
+            product = item.product
+
+            product_images = []
+
+            if product:
+                for img in product.images.all():
+                    if img.image:
+                        product_images.append(
+                            request.build_absolute_uri(img.image.url)
+                        )
+
+            products.append({
+                "order_item_id": item.id,
+                "quantity": item.quantity,
+                "price": str(item.price),
+
+                "product": {
+                    "id": product.id if product else None,
+                    "name": product.name if product else None,
+                    "slug": product.slug if product else None,
+                    "item_code": product.item_code if product else None,
+
+                    "brand": (
+                        product.brand.name
+                        if product and product.brand else None
+                    ),
+
+                    "category": (
+                        product.category.name
+                        if product and product.category else None
+                    ),
+
+                    "mrp": (
+                        str(product.mrp)
+                        if product else None
+                    ),
+
+                    "retail": (
+                        str(product.retail)
+                        if product else None
+                    ),
+
+                    "b2b": (
+                        str(product.b2b)
+                        if product else None
+                    ),
+
+                    "sku": (
+                        product.sku
+                        if product else None
+                    ),
+
+                    "stock_quantity": (
+                        product.stock_quantity
+                        if product else None
+                    ),
+
+                    "min_order_qty": (
+                        product.min_order_qty
+                        if product else None
+                    ),
+
+                    "image": (
+                        request.build_absolute_uri(product.image.url)
+                        if product and product.image else None
+                    ),
+
+                    "images": product_images,
+
+                    "status": (
+                        product.status
+                        if product else None
+                    ),
+
+                    "is_active": (
+                        product.is_active
+                        if product else False
+                    ),
+
+                    "is_best_seller": (
+                        product.is_best_seller
+                        if product else False
+                    ),
+
+                    "is_available_on_order": (
+                        product.is_available_on_order
+                        if product else False
+                    ),
+
+                    "created_at": (
+                        product.created_at
+                        if product else None
+                    ),
+
+                    "updated_at": (
+                        product.updated_at
+                        if product else None
+                    )
+                }
+            })
+
+        data.append({
+            "order_id": order.id,
+
+            "user": {
+                "id": order.user.id,
+                "username": order.user.username,
+                "email": order.user.email,
+                "phone": order.user.phone,
+                "business_name": order.user.business_name,
+                "business_category": order.user.business_category,
+                "role": order.user.role,
+                "status": order.user.status,
+
+                "image": (
+                    request.build_absolute_uri(order.user.image.url)
+                    if order.user.image else None
+                ),
+
+                "created_at": order.user.created_at
+            },
+
+            "address": {
+                "id": order.address.id if order.address else None,
+                "full_name": (
+                    order.address.full_name
+                    if order.address else None
+                ),
+                "mobile_number": (
+                    order.address.mobile_number
+                    if order.address else None
+                ),
+                "address_line_1": (
+                    order.address.address_line_1
+                    if order.address else None
+                ),
+                "address_line_2": (
+                    order.address.address_line_2
+                    if order.address else None
+                ),
+                "city": (
+                    order.address.city
+                    if order.address else None
+                ),
+                "state": (
+                    order.address.state
+                    if order.address else None
+                ),
+                "pincode": (
+                    order.address.pincode
+                    if order.address else None
+                ),
+            },
+
+            "payment": {
+                "payment_method": order.payment_method,
+                "transaction_id": order.transaction_id,
+
+                "transaction_screenshot": (
+                    request.build_absolute_uri(
+                        order.transaction_screenshot.url
+                    )
+                    if order.transaction_screenshot else None
+                ),
+
+                "payment_status": order.payment_status,
+            },
+
+            "order": {
+                "total_amount": str(order.total_amount),
+                "order_status": order.order_status,
+                "created_at": order.created_at,
+            },
+
+            "products": products
+        })
+
+    return JsonResponse({
+        "status": True,
+        "count": len(data),
+        "data": data
+    })
+
+
+
+@api_view(['PATCH'])
+@permission_classes([IsAuthenticated])
+def upi_order_status_change(request, order_id):
+
+    action = request.data.get('action')
+
+    try:
+        order = Order.objects.get(
+            id=order_id,
+            payment_method='UPI'
+        )
+    except Order.DoesNotExist:
+        return Response({
+            "status": False,
+            "message": "UPI Order not found"
+        }, status=status.HTTP_404_NOT_FOUND)
+
+    if action == 'verified':
+        order.payment_status = True
+        order.order_status = 'Confirmed'
+        message = "UPI order marked as verified"
+
+    elif action == 'Rejected':
+        order.payment_status = False
+        order.order_status = 'Rejected'
+        message = "UPI order marked as Rejected"
+
+    # elif action == 'pending':
+    #     order.payment_status = False
+    #     order.order_status = 'Pending'
+    #     message = "UPI order marked as pending"
+
+    else:
+        return Response({
+            "status": False,
+            "message": "Action must be verified or cancelled"
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+    order.save()
+
+    return Response({
+        "status": True,
+        "message": message,
+        "order_id": order.id,
+        "payment_status": order.payment_status,
+        "order_status": order.order_status
+    })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def pending_upi_order_count(request):
+
+    pending_count = Order.objects.filter(
+        payment_method='UPI',
+        payment_status=False,
+        order_status='Pending'
+    ).count()
+
+    return Response({
+        "status": True,
+        "pending_upi_orders": pending_count
+    })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def upi_orders(request):
+
+    status = request.GET.get('status')
+
+    queryset = Order.objects.filter(payment_method='UPI')
+
+    if status == 'pending':
+        queryset = queryset.filter(payment_status=False)
+
+    elif status == 'verified':
+        queryset = queryset.filter(payment_status=True)
+
+    elif status == 'cancelled':
+        queryset = queryset.filter(order_status='Cancelled')
+
+    return Response({
+        "status": True,
+        "count": queryset.count(),
+        "data": [
+            {
+                "id": order.id,
+                "user": order.user.username,
+                "total_amount": order.total_amount,
+                "payment_method": order.payment_method,
+                "payment_status": order.payment_status,
+                "order_status": order.order_status,
+                "transaction_id": order.transaction_id
+            }
+            for order in queryset
+        ]
+    })
+
+
+################################ product list without token setting ####################
+
+from .models import Product
+
+class PublicProductListAPIView(APIView):
+    # permission_classes = [AllowAny]  # NO TOKEN
+
+    def get(self, request):
+        products = Product.objects.all().order_by('-created_at')
+        results = []
+
+        for product in products:
+
+            # 1. Product main image
+            image_url = None
+            if product.image:
+                image_url = request.build_absolute_uri(product.image.url)
+
+            # 2. Extra images (ProductImage model)
+            extra_images = []
+            for img in product.images.all():
+                if img.image:
+                    extra_images.append(
+                        request.build_absolute_uri(img.image.url)
+                    )
+
+            results.append({
+                "id": product.id,
+                "name": product.name,
+                "item_code": product.item_code,
+                "category": product.category.name if product.category else None,
+                "brand": product.brand.name if product.brand else None,
+                "description": product.description,
+                "main_image": image_url,
+                "images": extra_images
+            })
+
+        return Response({
+            "success": True,
+            "total_products": products.count(),
+            "data": results
+        })
+    
+
+class OrderDateFilterAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+
+        if request.user.role != "admin":
+            return Response({
+                "status": False,
+                "message": "Permission denied"
+            }, status=403)
+
+        from_date = request.GET.get("from_date")
+        to_date = request.GET.get("to_date")
+
+        orders = Order.objects.select_related(
+            "user",
+            "address"
+        ).prefetch_related(
+            "items__product"
+        ).order_by("-id")
+
+        if from_date and to_date:
+            orders = orders.filter(
+                created_at__date__range=[from_date, to_date]
+            )
+
+        data = []
+
+        for order in orders:
+
+            products = []
+
+            for item in order.items.all():
+
+                product = item.product
+
+                products.append({
+                    "order_item_id": item.id,
+                    "quantity": item.quantity,
+                    "price": str(item.price),
+
+                    "product": {
+                        "id": product.id if product else None,
+                        "name": product.name if product else None,
+                        "category": product.category.name if product and product.category else None,
+                        "brand": product.brand.name if product and product.brand else None,
+                        "mrp": str(product.mrp) if product else None,
+                    }
+                })
+
+            data.append({
+                "order_id": order.id,
+                "order_status": order.order_status,
+                "payment_method": order.payment_method,
+                "payment_status": order.payment_status,
+                "total_amount": str(order.total_amount),
+
+                "user": {
+                    "id": order.user.id,
+                    "username": order.user.username,
+                    "email": order.user.email,
+                    "phone": order.user.phone,
+                    "business_name": order.user.business_name,
+                },
+
+                "address": {
+                    "full_name": order.address.full_name if order.address else None,
+                    "mobile_number": order.address.mobile_number if order.address else None,
+                    "city": order.address.city if order.address else None,
+                    "state": order.address.state if order.address else None,
+                    "pincode": order.address.pincode if order.address else None,
+                },
+
+                "products": products,
+                "created_at": order.created_at,
+            })
+
+        return Response({
+            "count": orders.count(),
+            "results": data
+        })
+
+
+    
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def get_cart_item_count(request):
+    user = request.user
+
+    try:
+        cart = Cart.objects.get(user=user)
+        item_count = cart.items.count()
+    except Cart.DoesNotExist:
+        item_count = 0
+
+    return JsonResponse(
+        {
+            "item_count": item_count
+        },
+        status=200
+    )
+
+###################### Filter category,brand,price api ########################
+
+
+
+class OrderFilterAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+
+        category = request.GET.get('category')
+        brand = request.GET.get('brand')
+        price = request.GET.get('price')
+
+        orders = Order.objects.prefetch_related(
+            'items__product',
+            'items__product__brand',
+            'items__product__category'
+        ).all()
+
+        if category:
+            orders = orders.filter(
+                items__product__category__name__icontains=category
+            )
+
+        if brand:
+            orders = orders.filter(
+                items__product__brand__name__icontains=brand
+            )
+
+        if price:
+
+            if price == '1000-2000':
+                orders = orders.filter(
+                    items__product__mrp__gte=1000,
+                    items__product__mrp__lte=2000
+                )
+
+            elif price == '2000-4000':
+                orders = orders.filter(
+                    items__product__mrp__gte=2000,
+                    items__product__mrp__lte=4000
+                )
+
+            elif price == '4000-6000':
+                orders = orders.filter(
+                    items__product__mrp__gte=4000,
+                    items__product__mrp__lte=6000
+                )
+
+        orders = orders.distinct()
+
+        data = []
+
+        for order in orders:
+
+            products = []
+
+            for item in order.items.all():
+
+                product = item.product
+
+                products.append({
+                    "order_item_id": item.id,
+                    "quantity": item.quantity,
+                    "price": str(item.price),
+
+                    "product": {
+                        "id": product.id if product else None,
+                        "name": product.name if product else None,
+                        "category": product.category.name if product and product.category else None,
+                        "brand": product.brand.name if product and product.brand else None,
+                        "mrp": str(product.mrp) if product else None,
+                        "retail": str(product.retail) if product else None,
+                        "image": request.build_absolute_uri(product.image.url)
+                        if product and product.image else None
+                    }
+                })
+
+            data.append({
+                "order_id": order.id,
+                "order_status": order.order_status,
+                "payment_method": order.payment_method,
+                "payment_status": order.payment_status,
+                "total_amount": str(order.total_amount),
+                "created_at": order.created_at,
+
+                "customer": {
+                    "id": order.user.id,
+                    "email": order.user.email,
+                    "phone": order.user.phone,
+                    "business_name": order.user.business_name
+                },
+
+                "products": products
+            })
+
+        return Response({
+            "count": len(data),
+            "results": data
+        })
+
+
