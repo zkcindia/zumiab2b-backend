@@ -87,6 +87,9 @@ urlpatterns = [
     path('products-by-date/', OrderDateFilterAPIView.as_view()),
 
     path("cart-item-count/", get_cart_item_count, name="cart-item-count"),
-    path('order-filter/', OrderFilterAPIView.as_view()),
+    path('product-filter/', ProductFilterAPIView.as_view()),
+
+    path("display-settings/",get_display_settings,name="get_display_settings"),
+    path("display-settings/update/",update_display_settings,name="update_display_settings"),
 
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

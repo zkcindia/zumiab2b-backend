@@ -6,7 +6,7 @@ from .models import *
 
 @admin.register(User)
 class AdminUser(admin.ModelAdmin):
-    list_display = ['id','username','phone','email','otp_code','image','business_name','business_category','role','status','is_active','created_at']
+    list_display = ['id','username','phone','email','otp_code','image','business_name','business_category','gst_number','role','status','is_active','created_at']
 
 @admin.register(Category)
 class Category(admin.ModelAdmin):
@@ -39,7 +39,7 @@ class Message(admin.ModelAdmin):
 
 @admin.register(Address)
 class Address(admin.ModelAdmin):
-    list_display = ['id','user','slug','full_name','mobile_number','address_line_1','address_line_2','city','state','pincode','is_default','created_at']
+    list_display = ['id','user','slug','full_name','mobile_number','alternate_mobile_number','address_line_1','address_line_2','city','state','pincode','is_default','created_at']
 
 
 @admin.register(Order)
@@ -49,3 +49,7 @@ class Order(admin.ModelAdmin):
 @admin.register(OrderItem)
 class OrderItem(admin.ModelAdmin):
     list_display = ['id','order','product','quantity','price']
+
+@admin.register(DisplaySetting)
+class DisplaySettingAdmin(admin.ModelAdmin):
+    list_display = ['mrp','retail','b2b','description','brand','item_code','sku','stock_quantity','updated_at']

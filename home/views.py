@@ -77,6 +77,7 @@ def signup(request):
         phone = request.POST.get('mobile')
         email = request.POST.get('email')
         business_name = request.POST.get('business_name')
+        gst_number = request.POST.get('gst_number')
         business_category = request.POST.get('business_category')
         image = request.FILES.get('image')
 
@@ -103,6 +104,7 @@ def signup(request):
             phone=phone,
             email=email,
             business_name=business_name,
+            gst_number =gst_number ,
             business_category=business_category,
             image=image,
             otp_code=None,
@@ -123,6 +125,7 @@ def signup(request):
             'email': user.email,
             'mobile': user.phone,
             'business_name': user.business_name,
+            'gst_number' : user.gst_number,
             'business_category': user.business_category,
             'role': user.role,
             'is_active': user.is_active,
@@ -572,6 +575,7 @@ def product_api(request, slug=None):
                 ).get(slug=slug)
 
                 images = ProductImage.objects.filter(product=product)
+                
 
                 return JsonResponse({
                     "status": True,
@@ -963,15 +967,73 @@ def product_status_api(request, slug):
             
 ####################### product  Publis  list api #############################
 
+# @api_view(['GET'])
+# def product_list(request):
+
+#     products = Product.objects.filter(status="Publish").order_by('-id')
+
+#     data = []
+#     for p in products:
+        
+#          # GET MULTIPLE IMAGES
+#         product_images = ProductImage.objects.filter(product=p)
+
+#         image_list = []
+
+#         for img in product_images:
+#             if img.image:
+#                 image_list.append(
+#                     request.build_absolute_uri(img.image.url)
+#                 )
+#         data.append({
+#             "id": p.id,
+#             "name": p.name,
+#             "slug": p.slug,
+#             "item_code": p.item_code,
+#             "mrp": p.mrp,
+#             "retail": p.retail,
+#             "b2b": p.b2b,
+
+#             "sku": p.sku,   
+#             "status": p.status,
+#             "brand": {
+#                 "id": p.brand.id,
+#                 "name": p.brand.name
+#             } if p.brand else None,
+
+#             "category": {
+#                 "id": p.category.id,
+#                 "name": p.category.name
+#             } if p.category else None,
+#             "description": p.description,
+#             "stock_quantity": p.stock_quantity,
+            
+#             "min_order_qty": p.min_order_qty,
+#             "images": image_list
+
+            
+#         })
+
+#     return JsonResponse({
+#         "status": True,
+#         "total": len(data),
+#         "data": data
+#     })
+
+
 @api_view(['GET'])
 def product_list(request):
 
-    products = Product.objects.filter(status="Publish").order_by('-id')
+    products = Product.objects.filter(
+        status="Publish"
+    ).order_by("-id")
+
+    display, _ = DisplaySetting.objects.get_or_create(id=1)
 
     data = []
+
     for p in products:
-        
-         # GET MULTIPLE IMAGES
+
         product_images = ProductImage.objects.filter(product=p)
 
         image_list = []
@@ -981,40 +1043,63 @@ def product_list(request):
                 image_list.append(
                     request.build_absolute_uri(img.image.url)
                 )
-        data.append({
+
+        product_data = {
             "id": p.id,
             "name": p.name,
             "slug": p.slug,
-            "item_code": p.item_code,
-            "mrp": p.mrp,
-            "retail": p.retail,
-            "b2b": p.b2b,
-
-            "sku": p.sku,   
             "status": p.status,
-            "brand": {
-                "id": p.brand.id,
-                "name": p.brand.name
-            } if p.brand else None,
+            "min_order_qty": p.min_order_qty,
+            "images": image_list,
+        }
 
-            "category": {
+        if display.item_code:
+            product_data["item_code"] = p.item_code
+
+        if display.mrp:
+            product_data["mrp"] = p.mrp
+
+        if display.retail:
+            product_data["retail"] = p.retail
+
+        if display.b2b:
+            product_data["b2b"] = p.b2b
+
+        if display.sku:
+            product_data["sku"] = p.sku
+
+        if display.stock_quantity:
+            product_data["stock_quantity"] = p.stock_quantity
+
+        if display.brand:
+            product_data["brand"] = (
+                {
+                    "id": p.brand.id,
+                    "name": p.brand.name
+                }
+                if p.brand else None
+            )
+
+        if display.description:
+            product_data["description"] = p.description
+
+        # Always visible
+        product_data["category"] = (
+            {
                 "id": p.category.id,
                 "name": p.category.name
-            } if p.category else None,
-            "description": p.description,
-            "stock_quantity": p.stock_quantity,
-            
-            "min_order_qty": p.min_order_qty,
-            "images": image_list
+            }
+            if p.category else None
+        )
 
-            
-        })
+        data.append(product_data)
 
     return JsonResponse({
         "status": True,
         "total": len(data),
         "data": data
     })
+
 
 from rest_framework.views import APIView
 
@@ -1935,6 +2020,18 @@ def add_to_cart(request):
         }
     )
 
+    async_to_sync(channel_layer.group_send)(
+        "cart_updates",
+        {
+            "type": "notify",
+            "message": {
+                "type": "cart_quantity",
+                "product_id": product.id,
+                "quantity": cart_item.quantity
+            }
+        }
+    )
+
     print("WebSocket Event Sent")
 
     # ======================
@@ -2226,6 +2323,7 @@ def address_api(request, slug=None):
                 # "slug": a.slug,/
                 "full_name": a.full_name,
                 "mobile_number": a.mobile_number,
+                "alternate_mobile_number": a.alternate_mobile_number,
                 "address_line_1": a.address_line_1,
                 "address_line_2": a.address_line_2,
                 "city": a.city,
@@ -2244,6 +2342,7 @@ def address_api(request, slug=None):
             user=user,
             full_name=data.get("full_name"),
             mobile_number=data.get("mobile_number"),
+            alternate_mobile_number = data.get("alternate_mobile_number"),
             address_line_1=data.get("address_line_1"),
             address_line_2=data.get("address_line_2"),
             city=data.get("city"),
@@ -2280,6 +2379,7 @@ def edit_address(request, address_id):
 
         address.full_name = data.get("full_name", address.full_name)
         address.mobile_number = data.get("mobile_number", address.mobile_number)
+        address.alternate_mobile_number = data.get("alternate_mobile_number", address.alternate_mobile_number)
         address.address_line_1 = data.get("address_line_1", address.address_line_1)
         address.address_line_2 = data.get("address_line_2", address.address_line_2)
         address.pincode = data.get("pincode", address.pincode)
@@ -3435,7 +3535,105 @@ def get_cart_item_count(request):
 
 
 
-class OrderFilterAPIView(APIView):
+# class OrderFilterAPIView(APIView):
+#     permission_classes = [IsAuthenticated]
+
+#     def get(self, request):
+
+#         category = request.GET.get('category')
+#         brand = request.GET.get('brand')
+#         price = request.GET.get('price')
+
+#         orders = Order.objects.prefetch_related(
+#             'items__product',
+#             'items__product__brand',
+#             'items__product__category'
+#         ).all()
+
+#         if category:
+#             orders = orders.filter(
+#                 items__product__category__name__icontains=category
+#             )
+
+#         if brand:
+#             orders = orders.filter(
+#                 items__product__brand__name__icontains=brand
+#             )
+
+#         if price:
+
+#             if price == '1000-2000':
+#                 orders = orders.filter(
+#                     items__product__mrp__gte=1000,
+#                     items__product__mrp__lte=2000
+#                 )
+
+#             elif price == '2000-4000':
+#                 orders = orders.filter(
+#                     items__product__mrp__gte=2000,
+#                     items__product__mrp__lte=4000
+#                 )
+
+#             elif price == '4000-6000':
+#                 orders = orders.filter(
+#                     items__product__mrp__gte=4000,
+#                     items__product__mrp__lte=6000
+#                 )
+
+#         orders = orders.distinct()
+
+#         data = []
+
+#         for order in orders:
+
+#             products = []
+
+#             for item in order.items.all():
+
+#                 product = item.product
+
+#                 products.append({
+#                     "order_item_id": item.id,
+#                     "quantity": item.quantity,
+#                     "price": str(item.price),
+
+#                     "product": {
+#                         "id": product.id if product else None,
+#                         "name": product.name if product else None,
+#                         "category": product.category.name if product and product.category else None,
+#                         "brand": product.brand.name if product and product.brand else None,
+#                         "mrp": str(product.mrp) if product else None,
+#                         "retail": str(product.retail) if product else None,
+#                         "image": request.build_absolute_uri(product.image.url)
+#                         if product and product.image else None
+#                     }
+#                 })
+
+#             data.append({
+#                 "order_id": order.id,
+#                 "order_status": order.order_status,
+#                 "payment_method": order.payment_method,
+#                 "payment_status": order.payment_status,
+#                 "total_amount": str(order.total_amount),
+#                 "created_at": order.created_at,
+
+#                 "customer": {
+#                     "id": order.user.id,
+#                     "email": order.user.email,
+#                     "phone": order.user.phone,
+#                     "business_name": order.user.business_name
+#                 },
+
+#                 "products": products
+#             })
+
+#         return Response({
+#             "count": len(data),
+#             "results": data
+#         })
+
+
+class ProductFilterAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -3444,92 +3642,123 @@ class OrderFilterAPIView(APIView):
         brand = request.GET.get('brand')
         price = request.GET.get('price')
 
-        orders = Order.objects.prefetch_related(
-            'items__product',
-            'items__product__brand',
-            'items__product__category'
-        ).all()
+        products = Product.objects.all()
 
         if category:
-            orders = orders.filter(
-                items__product__category__name__icontains=category
+            products = products.filter(
+                category__name__icontains=category
             )
 
         if brand:
-            orders = orders.filter(
-                items__product__brand__name__icontains=brand
+            products = products.filter(
+                brand__name__icontains=brand
             )
 
         if price:
-
-            if price == '1000-2000':
-                orders = orders.filter(
-                    items__product__mrp__gte=1000,
-                    items__product__mrp__lte=2000
+            if price == '0-1000':
+                products = products.filter(
+                    mrp__gte=0,
+                    mrp__lte=1000
                 )
 
-            elif price == '2000-4000':
-                orders = orders.filter(
-                    items__product__mrp__gte=2000,
-                    items__product__mrp__lte=4000
+            elif price == '1000-5000':
+                products = products.filter(
+                    mrp__gte=1000,
+                    mrp__lte=5000
                 )
 
-            elif price == '4000-6000':
-                orders = orders.filter(
-                    items__product__mrp__gte=4000,
-                    items__product__mrp__lte=6000
+            elif price == '5000-10000':
+                products = products.filter(
+                    mrp__gte=5000,
+                    mrp__lte=10000
                 )
 
-        orders = orders.distinct()
+            elif price == '10000-100000':
+                products = products.filter(
+                    mrp__gte=10000,
+                    mrp__lte=100000
+                )
+            
+            elif price == '100000-infinity':
+                products = products.filter(
+                    mrp__gte=100000
+                )
 
         data = []
 
-        for order in orders:
-
-            products = []
-
-            for item in order.items.all():
-
-                product = item.product
-
-                products.append({
-                    "order_item_id": item.id,
-                    "quantity": item.quantity,
-                    "price": str(item.price),
-
-                    "product": {
-                        "id": product.id if product else None,
-                        "name": product.name if product else None,
-                        "category": product.category.name if product and product.category else None,
-                        "brand": product.brand.name if product and product.brand else None,
-                        "mrp": str(product.mrp) if product else None,
-                        "retail": str(product.retail) if product else None,
-                        "image": request.build_absolute_uri(product.image.url)
-                        if product and product.image else None
-                    }
-                })
+        for product in products:
+            first_image = product.images.first()
 
             data.append({
-                "order_id": order.id,
-                "order_status": order.order_status,
-                "payment_method": order.payment_method,
-                "payment_status": order.payment_status,
-                "total_amount": str(order.total_amount),
-                "created_at": order.created_at,
-
-                "customer": {
-                    "id": order.user.id,
-                    "email": order.user.email,
-                    "phone": order.user.phone,
-                    "business_name": order.user.business_name
-                },
-
-                "products": products
+                "id": product.id,
+                "name": product.name,
+                "slug": product.slug,
+                "item_code" : product.item_code,
+                "category": product.category.name if product.category else None,
+                "brand": product.brand.name if product.brand else None,
+                "mrp": product.mrp,
+                "description": product.description,
+                "stock_quantity": product.stock_quantity,
+                "status": product.status,
+                "retail": product.retail,
+                "b2b": product.b2b,
+                "sku": product.sku,
+                "min_order_qty": product.min_order_qty,
+                "image": (
+                request.build_absolute_uri(first_image.image.url)
+                if first_image and first_image.image
+                else None)
             })
 
         return Response({
-            "count": len(data),
+            "count": products.count(),
             "results": data
         })
 
 
+#####################################################  DisplaySetting  ##############################################################
+
+@api_view(['PUT'])
+@permission_classes([IsAuthenticated])
+def update_display_settings(request):
+
+    if request.user.role != "admin":
+        return Response({
+            "status": False,
+            "message": "Permission denied"
+        }, status=403)
+
+    settings_obj, _ = DisplaySetting.objects.get_or_create(id=1)
+
+    settings_obj.mrp = request.data.get("mrp", settings_obj.mrp)
+    settings_obj.retail = request.data.get("retail", settings_obj.retail)
+    settings_obj.b2b = request.data.get("b2b", settings_obj.b2b)
+    settings_obj.description = request.data.get("description", settings_obj.description)
+    settings_obj.brand = request.data.get("brand", settings_obj.brand)
+    settings_obj.item_code = request.data.get("item_code", settings_obj.item_code)
+    settings_obj.sku = request.data.get("sku", settings_obj.sku)
+    settings_obj.stock_quantity = request.data.get("stock_quantity", settings_obj.stock_quantity)
+
+    settings_obj.save()
+
+    return Response({
+        "status": True,
+        "message": "Display settings updated"
+    })
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_display_settings(request):
+
+    settings_obj, _ = DisplaySetting.objects.get_or_create(id=1)
+
+    return Response({
+        "mrp": settings_obj.mrp,
+        "retail": settings_obj.retail,
+        "b2b": settings_obj.b2b,
+        "description": settings_obj.description,
+        "brand": settings_obj.brand,
+        "item_code": settings_obj.item_code,
+        "sku": settings_obj.sku,
+        "stock_quantity": settings_obj.stock_quantity,
+    })

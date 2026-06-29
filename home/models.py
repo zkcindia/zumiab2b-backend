@@ -40,6 +40,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     business_name = models.CharField(max_length=200, blank=True, null=True)
     business_category = models.CharField(max_length=50, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    gst_number = models.CharField(max_length=30, blank=True, null=True)
     ROLE_CHOICES = (
         ('admin', 'Admin'),
         ('account', 'Account'),
@@ -205,6 +206,7 @@ class Address(models.Model):
     slug = models.SlugField(unique=True, blank=True, null=True)
     full_name = models.CharField(max_length=100)
     mobile_number = models.CharField(max_length=15)
+    alternate_mobile_number = models.CharField(max_length=15, blank=True, null=True)
     address_line_1 = models.CharField(max_length=255)
     address_line_2 = models.CharField(max_length=255, blank=True, null=True)
     city = models.CharField(max_length=100)
@@ -254,3 +256,19 @@ class OrderItem(models.Model):
 
     def __str__(self):
         return f"{self.product.name} x {self.quantity}"
+    
+
+class DisplaySetting(models.Model):
+    mrp = models.BooleanField(default=True)
+    retail = models.BooleanField(default=True)
+    b2b = models.BooleanField(default=True)
+    description = models.BooleanField(default=True)
+    brand = models.BooleanField(default=True)
+    item_code = models.BooleanField(default=True)
+    sku = models.BooleanField(default=True)
+    stock_quantity = models.BooleanField(default=True)
+
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return "Display Settings"
