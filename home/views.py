@@ -2624,6 +2624,10 @@ def buy_now(request):
     address_id = request.data.get("address_id")
     product_id = request.data.get("product_id")
     quantity = int(request.data.get("quantity", 1))
+    remarks = request.data.get("remarks")
+
+    print(request.data)
+    print("Remarks:", remarks)
 
     if not address_id:
         return JsonResponse({
@@ -2660,6 +2664,7 @@ def buy_now(request):
     order = Order.objects.create(
         user=user,
         address=address,
+        remarks = remarks,
         total_amount=total_amount,
         payment_method="COD"
     )
@@ -3633,16 +3638,101 @@ def get_cart_item_count(request):
 #         })
 
 
+# class ProductFilterAPIView(APIView):
+#     permission_classes = [IsAuthenticated]
+
+#     def get(self, request):
+
+#         category = request.GET.get('category')
+#         brand = request.GET.get('brand')
+#         price = request.GET.get('price')
+
+#         products = Product.objects.all()
+
+#         if category:
+#             products = products.filter(
+#                 category__name__icontains=category
+#             )
+
+#         if brand:
+#             products = products.filter(
+#                 brand__name__icontains=brand
+#             )
+
+#         if price:
+#             if price == '0-1000':
+#                 products = products.filter(
+#                     mrp__gte=0,
+#                     mrp__lte=1000
+#                 )
+
+#             elif price == '1000-5000':
+#                 products = products.filter(
+#                     mrp__gte=1000,
+#                     mrp__lte=5000
+#                 )
+
+#             elif price == '5000-10000':
+#                 products = products.filter(
+#                     mrp__gte=5000,
+#                     mrp__lte=10000
+#                 )
+
+#             elif price == '10000-100000':
+#                 products = products.filter(
+#                     mrp__gte=10000,
+#                     mrp__lte=100000
+#                 )
+            
+#             elif price == '100000-infinity':
+#                 products = products.filter(
+#                     mrp__gte=100000
+#                 )
+
+#         data = []
+
+#         for product in products:
+#             first_image = product.images.first()
+
+#             data.append({
+#                 "id": product.id,
+#                 "name": product.name,
+#                 "slug": product.slug,
+#                 "item_code" : product.item_code,
+#                 "category": product.category.name if product.category else None,
+#                 "brand": product.brand.name if product.brand else None,
+#                 "mrp": product.mrp,
+#                 "description": product.description,
+#                 "stock_quantity": product.stock_quantity,
+#                 "status": product.status,
+#                 "retail": product.retail,
+#                 "b2b": product.b2b,
+#                 "sku": product.sku,
+#                 "min_order_qty": product.min_order_qty,
+#                 "image": (
+#                 request.build_absolute_uri(first_image.image.url)
+#                 if first_image and first_image.image
+#                 else None)
+#             })
+
+#         return Response({
+#             "count": products.count(),
+#             "results": data
+#         })
+
+
 class ProductFilterAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
 
-        category = request.GET.get('category')
-        brand = request.GET.get('brand')
-        price = request.GET.get('price')
+        category = request.GET.get("category")
+        brand = request.GET.get("brand")
+        price = request.GET.get("price")
 
-        products = Product.objects.all()
+        display, _ = DisplaySetting.objects.get_or_create(id=1)
+
+        products = Product.objects.filter(status="Publish")
 
         if category:
             products = products.filter(
@@ -3655,31 +3745,31 @@ class ProductFilterAPIView(APIView):
             )
 
         if price:
-            if price == '0-1000':
+            if price == "0-1000":
                 products = products.filter(
                     mrp__gte=0,
                     mrp__lte=1000
                 )
 
-            elif price == '1000-5000':
+            elif price == "1000-5000":
                 products = products.filter(
                     mrp__gte=1000,
                     mrp__lte=5000
                 )
 
-            elif price == '5000-10000':
+            elif price == "5000-10000":
                 products = products.filter(
                     mrp__gte=5000,
                     mrp__lte=10000
                 )
 
-            elif price == '10000-100000':
+            elif price == "10000-100000":
                 products = products.filter(
                     mrp__gte=10000,
                     mrp__lte=100000
                 )
-            
-            elif price == '100000-infinity':
+
+            elif price == "100000-infinity":
                 products = products.filter(
                     mrp__gte=100000
                 )
@@ -3687,32 +3777,61 @@ class ProductFilterAPIView(APIView):
         data = []
 
         for product in products:
+
             first_image = product.images.first()
 
-            data.append({
+            product_data = {
                 "id": product.id,
                 "name": product.name,
                 "slug": product.slug,
-                "item_code" : product.item_code,
-                "category": product.category.name if product.category else None,
-                "brand": product.brand.name if product.brand else None,
-                "mrp": product.mrp,
-                "description": product.description,
-                "stock_quantity": product.stock_quantity,
                 "status": product.status,
-                "retail": product.retail,
-                "b2b": product.b2b,
-                "sku": product.sku,
                 "min_order_qty": product.min_order_qty,
+
                 "image": (
-                request.build_absolute_uri(first_image.image.url)
-                if first_image and first_image.image
-                else None)
-            })
+                    request.build_absolute_uri(first_image.image.url)
+                    if first_image and first_image.image
+                    else None
+                ),
+
+                "category": {
+                    "id": product.category.id,
+                    "name": product.category.name
+                } if product.category else None,
+            }
+
+            if display.item_code:
+                product_data["item_code"] = product.item_code
+
+            if display.brand:
+                product_data["brand"] = {
+                    "id": product.brand.id,
+                    "name": product.brand.name
+                } if product.brand else None
+
+            if display.description:
+                product_data["description"] = product.description
+
+            if display.mrp:
+                product_data["mrp"] = str(product.mrp)
+
+            if display.retail:
+                product_data["retail"] = str(product.retail)
+
+            if display.b2b:
+                product_data["b2b"] = str(product.b2b)
+
+            if display.sku:
+                product_data["sku"] = product.sku
+
+            if display.stock_quantity:
+                product_data["stock_quantity"] = product.stock_quantity
+
+            data.append(product_data)
 
         return Response({
-            "count": products.count(),
-            "results": data
+            "status": True,
+            "total": products.count(),
+            "data": data
         })
 
 
@@ -3761,4 +3880,70 @@ def get_display_settings(request):
         "item_code": settings_obj.item_code,
         "sku": settings_obj.sku,
         "stock_quantity": settings_obj.stock_quantity,
+    })
+
+
+# @api_view(["GET"])
+# @permission_classes([IsAuthenticated])
+# def get_last_order_details(request):
+#     user = request.user
+
+#     order = (
+#         Order.objects.filter(user=user)
+#         .order_by("-created_at")
+#         .first()
+#     )
+
+#     if not order:
+#         return JsonResponse({
+#             "status": False,
+#             "message": "No orders found."
+#         }, status=404)
+
+#     return JsonResponse({
+#         "status": True,
+#         "data": {
+#             "company_name": user.business_name,
+#             "email": user.email,
+#             "mobile": user.phone,
+#             "remarks": order.remarks,
+#             "order_id": order.id,
+#             "created_at": order.created_at,
+#         }
+#     })
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def get_last_order_details(request):
+
+    orders = (
+        Order.objects
+        .exclude(remarks__isnull=True)
+        .exclude(remarks="")
+        .order_by("-created_at")
+    )
+
+    if not orders.exists():
+        return JsonResponse({
+            "status": False,
+            "message": "No orders found."
+        }, status=404)
+
+    data = []
+
+    for order in orders:
+        data.append({
+            "company_name": order.user.business_name,
+            "email": order.user.email,
+            "mobile": order.user.phone,
+            "remarks": order.remarks,
+            "order_id": order.id,
+            "created_at": order.created_at,
+        })
+
+    return JsonResponse({
+        "status": True,
+        "count": len(data),
+        "data": data
     })

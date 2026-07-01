@@ -243,6 +243,8 @@ class Order(models.Model):
     transaction_id = models.CharField(max_length=100, blank=True, null=True)
     transaction_screenshot = models.ImageField(upload_to='transactions/', blank=True, null=True)
 
+    remarks = models.TextField(blank=True, null=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

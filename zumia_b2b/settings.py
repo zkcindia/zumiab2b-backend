@@ -23,11 +23,14 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = 'django-insecure-1$rii2$*j^rgfhyxb-c!t0-o62r%p0l$h59k#cw)+gfz)&ufoh'
+SECRET_KEY = config('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+# DEBUG = True
+DEBUG = config('DEBUG', cast=bool)
 
-ALLOWED_HOSTS = ['*']
+# ALLOWED_HOSTS = ['indotaskbg.indotask.com']/
+ALLOWED_HOSTS = config('ALLOWED_HOSTS').split(',')
 
 
 # Application definition
@@ -63,7 +66,7 @@ AUTH_USER_MODEL = 'home.User'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR / "templates"],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -176,3 +179,14 @@ CHANNEL_LAYERS = {
         "BACKEND": "channels.layers.InMemoryChannelLayer"
     }
 }
+
+CORS_ALLOWED_ORIGINS = [
+    # 'https://storebg.lightcircle.in',
+    'https://zumiab2b.zumiahomes.com',
+
+
+]
+CSRF_TRUSTED_ORIGINS = [
+        # 'https://storebg.lightcircle.in'
+        'https://zumiab2b.zumiahomes.com'
+]

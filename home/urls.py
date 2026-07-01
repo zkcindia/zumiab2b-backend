@@ -92,4 +92,6 @@ urlpatterns = [
     path("display-settings/",get_display_settings,name="get_display_settings"),
     path("display-settings/update/",update_display_settings,name="update_display_settings"),
 
+    path("last-order-details/",views.get_last_order_details,name="last-order-details"),
+
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
