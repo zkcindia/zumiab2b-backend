@@ -55,6 +55,7 @@ urlpatterns = [
     path('export-customers/', views.export_customers, name='export-customers'),
 
     path('cart/', get_cart, name='get-cart'),
+    path("cart-item-count/", get_cart_item_count, name="cart-item-count"),
     path('add_to_cart/', add_to_cart),
 
     path('cart/update/', update_cart_quantity, name='update_cart_quantity'),
@@ -86,7 +87,7 @@ urlpatterns = [
     path('public-products-list/', PublicProductListAPIView.as_view()),
     path('products-by-date/', OrderDateFilterAPIView.as_view()),
 
-    path("cart-item-count/", get_cart_item_count, name="cart-item-count"),
+    # path("cart-item-count/", get_cart_item_count, name="cart-item-count"),/
     path('product-filter/', ProductFilterAPIView.as_view()),
 
     path("display-settings/",get_display_settings,name="get_display_settings"),

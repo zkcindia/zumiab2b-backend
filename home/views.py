@@ -1145,39 +1145,188 @@ class ProductPriceFilterAPIView(APIView):
 
 import pandas as pd
 
+# class BulkProductImportAPIView(APIView):
+
+#     def post(self, request):
+
+#         excel_file = request.FILES.get('file')
+
+#         if not excel_file:
+#             return Response({"error": "Excel file is required"}, status=400)
+
+#         df = pd.read_excel(excel_file)
+
+#         results = []
+#         created_count = 0
+#         updated_count = 0
+#         failed_count = 0
+
+#         for index, row in df.iterrows():
+
+#             row_number = index + 2
+
+#             try:
+#                 name = str(row.get('name', '')).strip()
+#                 item_code = str(row.get('item_code', '')).strip()
+
+#                 category_name = str(row.get('category', '')).strip()
+#                 brand_name = str(row.get('brand', '')).strip()
+
+#                 mrp = row.get('mrp') or 0
+#                 retail = row.get('retail') or 0
+#                 b2b = row.get('b2b') or 0
+#                 stock = row.get('stock') or 0
+
+#                 # ---------------- VALIDATION ----------------
+#                 if not name or name == "nan":
+#                     raise Exception("Missing name")
+
+#                 if not item_code or item_code == "nan":
+#                     raise Exception("Missing item_code")
+
+#                 # ---------------- CATEGORY ----------------
+#                 category = None
+#                 if category_name and category_name != "nan":
+#                     category, _ = Category.objects.get_or_create(
+#                         name=category_name
+#                     )
+
+#                 # ---------------- BRAND (FIXED) ----------------
+#                 brand = None
+#                 if brand_name and brand_name != "nan":
+#                     slug = slugify(brand_name)
+
+#                     brand, _ = Brand.objects.get_or_create(
+#                         slug=slug,
+#                         defaults={"name": brand_name}
+#                     )
+
+#                 # ---------------- PRODUCT (FIXED LOGIC) ----------------
+#                 product, created = Product.objects.get_or_create(
+#                     item_code=item_code,
+#                     defaults={
+#                         "name": name,
+#                         "category": category,
+#                         "brand": brand,
+#                         "mrp": float(mrp),
+#                         "retail": float(retail),
+#                         "b2b": float(b2b),
+#                         "stock_quantity": int(stock)
+#                     }
+#                 )
+
+#                 if not created:
+#                     # UPDATE existing product
+#                     product.name = name
+#                     product.category = category
+#                     product.brand = brand
+#                     product.mrp = float(mrp)
+#                     product.retail = float(retail)
+#                     product.b2b = float(b2b)
+#                     product.stock_quantity = int(stock)
+#                     product.save()
+
+#                     updated_count += 1
+
+#                     results.append({
+#                         "row": row_number,
+#                         "status": "success",
+#                         "action": "updated",
+#                         "item_code": item_code
+#                     })
+
+#                 else:
+#                     created_count += 1
+
+#                     results.append({
+#                         "row": row_number,
+#                         "status": "success",
+#                         "action": "created",
+#                         "item_code": item_code
+#                     })
+
+#             except Exception as e:
+
+#                 failed_count += 1
+
+#                 results.append({
+#                     "row": row_number,
+#                     "status": "failed",
+#                     "item_code": str(row.get("item_code", "")),
+#                     "reason": str(e)
+#                 })
+
+#         return Response({
+#             "success": True,
+#             "total_rows": len(df),
+#             "created_count": created_count,
+#             "updated_count": updated_count,
+#             "failed_count": failed_count,
+#             "results": results
+#         })
+    
 class BulkProductImportAPIView(APIView):
 
     def post(self, request):
 
-        excel_file = request.FILES.get('file')
+        excel_file = request.FILES.get("file")
 
         if not excel_file:
-            return Response({"error": "Excel file is required"}, status=400)
+            return Response(
+                {"error": "Excel file is required"},
+                status=400
+            )
 
         df = pd.read_excel(excel_file)
 
-        results = []
         created_count = 0
         updated_count = 0
         failed_count = 0
+        results = []
 
         for index, row in df.iterrows():
 
             row_number = index + 2
 
             try:
-                name = str(row.get('name', '')).strip()
-                item_code = str(row.get('item_code', '')).strip()
 
-                category_name = str(row.get('category', '')).strip()
-                brand_name = str(row.get('brand', '')).strip()
+                name = str(row.get("name", "")).strip()
+                item_code = str(row.get("item_code", "")).strip()
 
-                mrp = row.get('mrp') or 0
-                retail = row.get('retail') or 0
-                b2b = row.get('b2b') or 0
-                stock = row.get('stock') or 0
+                category_name = str(
+                    row.get("category", "")
+                ).strip().lower()
+
+                brand_name = str(
+                    row.get("brand", "")
+                ).strip().lower()
+
+                description = str(
+                    row.get("description", "")
+                ).strip()
+
+                sku = str(
+                    row.get("sku", "")
+                ).strip()
+
+                status = str(
+                    row.get("status", "Publish")
+                ).strip()
+
+                mrp = float(row.get("mrp") or 0)
+                retail = float(row.get("retail") or 0)
+                b2b = float(row.get("b2b") or 0)
+
+                stock_quantity = int(
+                    row.get("stock_quantity") or 0
+                )
+
+                min_order_qty = int(
+                    row.get("min_order_qty") or 1
+                )
 
                 # ---------------- VALIDATION ----------------
+
                 if not name or name == "nan":
                     raise Exception("Missing name")
 
@@ -1185,65 +1334,82 @@ class BulkProductImportAPIView(APIView):
                     raise Exception("Missing item_code")
 
                 # ---------------- CATEGORY ----------------
+
                 category = None
+
                 if category_name and category_name != "nan":
+
                     category, _ = Category.objects.get_or_create(
-                        name=category_name
+                        slug=slugify(category_name),
+                        defaults={
+                            "name": category_name
+                        }
                     )
 
-                # ---------------- BRAND (FIXED) ----------------
+                # ---------------- BRAND ----------------
+
                 brand = None
+
                 if brand_name and brand_name != "nan":
-                    slug = slugify(brand_name)
 
                     brand, _ = Brand.objects.get_or_create(
-                        slug=slug,
-                        defaults={"name": brand_name}
+                        slug=slugify(brand_name),
+                        defaults={
+                            "name": brand_name
+                        }
                     )
 
-                # ---------------- PRODUCT (FIXED LOGIC) ----------------
+                # ---------------- PRODUCT ----------------
+
                 product, created = Product.objects.get_or_create(
                     item_code=item_code,
                     defaults={
                         "name": name,
                         "category": category,
                         "brand": brand,
-                        "mrp": float(mrp),
-                        "retail": float(retail),
-                        "b2b": float(b2b),
-                        "stock_quantity": int(stock)
-                    }
+                        "description": description,
+                        "mrp": mrp,
+                        "retail": retail,
+                        "b2b": b2b,
+                        "sku": sku,
+                        "stock_quantity": stock_quantity,
+                        "min_order_qty": min_order_qty,
+                        "status": status,
+                    },
                 )
 
-                if not created:
-                    # UPDATE existing product
+                if created:
+
+                    created_count += 1
+
+                    action = "created"
+
+                else:
+
                     product.name = name
                     product.category = category
                     product.brand = brand
-                    product.mrp = float(mrp)
-                    product.retail = float(retail)
-                    product.b2b = float(b2b)
-                    product.stock_quantity = int(stock)
+                    product.description = description
+                    product.mrp = mrp
+                    product.retail = retail
+                    product.b2b = b2b
+                    product.sku = sku
+                    product.stock_quantity = stock_quantity
+                    product.min_order_qty = min_order_qty
+                    product.status = status
+
                     product.save()
 
                     updated_count += 1
 
-                    results.append({
-                        "row": row_number,
-                        "status": "success",
-                        "action": "updated",
-                        "item_code": item_code
-                    })
+                    action = "updated"
 
-                else:
-                    created_count += 1
-
-                    results.append({
-                        "row": row_number,
-                        "status": "success",
-                        "action": "created",
-                        "item_code": item_code
-                    })
+                results.append({
+                    "row": row_number,
+                    "status": "success",
+                    "action": action,
+                    "item_code": item_code,
+                })
 
             except Exception as e:
 
@@ -1253,7 +1419,7 @@ class BulkProductImportAPIView(APIView):
                     "row": row_number,
                     "status": "failed",
                     "item_code": str(row.get("item_code", "")),
-                    "reason": str(e)
+                    "reason": str(e),
                 })
 
         return Response({
@@ -1262,9 +1428,10 @@ class BulkProductImportAPIView(APIView):
             "created_count": created_count,
             "updated_count": updated_count,
             "failed_count": failed_count,
-            "results": results
+            "results": results,
         })
-    
+
+
 class ProductListAPIView(APIView):
 
     def get(self, request):
@@ -3518,23 +3685,23 @@ class OrderDateFilterAPIView(APIView):
 
 
     
-@api_view(["GET"])
-@permission_classes([IsAuthenticated])
-def get_cart_item_count(request):
-    user = request.user
+# @api_view(["GET"])
+# @permission_classes([IsAuthenticated])
+# def get_cart_item_count(request):
+#     user = request.user
 
-    try:
-        cart = Cart.objects.get(user=user)
-        item_count = cart.items.count()
-    except Cart.DoesNotExist:
-        item_count = 0
+#     try:
+#         cart = Cart.objects.get(user=user)
+#         item_count = cart.items.count()
+#     except Cart.DoesNotExist:
+#         item_count = 0
 
-    return JsonResponse(
-        {
-            "item_count": item_count
-        },
-        status=200
-    )
+#     return JsonResponse(
+#         {
+#             "item_count": item_count
+#         },
+#         status=200
+#     )
 
 ###################### Filter category,brand,price api ########################
 
@@ -3947,3 +4114,61 @@ def get_last_order_details(request):
         "count": len(data),
         "data": data
     })
+
+
+# @api_view(["GET"])
+# @permission_classes([IsAuthenticated])
+# def get_cart_item_count(request):
+#     user = request.user
+
+#     try:
+#         cart = Cart.objects.get(user=user)
+#         item_count = cart.items.count()
+#     except Cart.DoesNotExist:
+#         item_count = 0
+
+#     return JsonResponse(
+#         {
+#             "item_count": item_count
+#         },
+#         status=200
+#     )
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def get_cart_item_count(request):
+
+    user = request.user
+    product_id = request.GET.get("product_id")
+
+    if not product_id:
+        return JsonResponse(
+            {
+                "status": False,
+                "message": "product_id is required"
+            },
+            status=400
+        )
+
+    try:
+        cart = Cart.objects.get(user=user)
+
+        cart_item = CartItem.objects.filter(
+            cart=cart,
+            product_id=product_id
+        ).first()
+
+        quantity = cart_item.quantity if cart_item else 0
+
+    except Cart.DoesNotExist:
+        quantity = 0
+
+    return JsonResponse(
+        {
+            "status": True,
+            "product_id": int(product_id),
+            "quantity": quantity
+        },
+        status=200
+    )
