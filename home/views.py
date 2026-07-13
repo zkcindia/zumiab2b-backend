@@ -2177,7 +2177,7 @@ def add_to_cart(request):
     channel_layer = get_channel_layer()
 
     async_to_sync(channel_layer.group_send)(
-        "cart_updates",
+        f"cart_{request.user.id}",
         {
             "type": "notify",
             "message": {
@@ -2188,7 +2188,7 @@ def add_to_cart(request):
     )
 
     async_to_sync(channel_layer.group_send)(
-        "cart_updates",
+        f"cart_{request.user.id}",
         {
             "type": "notify",
             "message": {
@@ -2373,7 +2373,7 @@ def delete_cart_item(request, cart_item_id):
     channel_layer = get_channel_layer()
 
     async_to_sync(channel_layer.group_send)(
-        "cart_updates",
+        f"cart_{request.user.id}",
         {
             "type": "notify",
             "message": {
