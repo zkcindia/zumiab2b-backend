@@ -14,5 +14,13 @@ urlpatterns = [
     # superadmin
     path("all-users/", get_all_users, name='get_all_users'),
     path('update-user-status/<int:user_id>/',update_user_status),
+
+    path('customer-status-count/', customer_status_count, name='customer_status_count'),
+    path('order-status-count/',order_status_count,name='order_status_count'),
+    path('order-status-summary/', order_status_summary, name='order_status_summary'),
+    path('customer-status-summary/',customer_status_summary,name='customer_status_summary'),
+    path('product-count/', product_count, name='product_count'),
+    path('delivered-order-summary/',delivered_order_summary,name='delivered_order_summary'),
+    path('pending-upi-order-count/',pending_upi_order_count,name='pending-upi-order-count'),
     
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

@@ -32,7 +32,6 @@ urlpatterns = [
     path('publish-brand/', publish_brand),
     path('publish-brand/<slug:slug>/', publish_brand),
     path("product/", product_api),          # GET all + POST
-    # path("product/<int:pk>/", product_api), # GET one + PUT + DELETE
     path("product/<slug:slug>/", product_api),
     path('product-status/<slug:slug>/', product_status_api, name='product-status-api'),
     path('publish-products/', product_list),
@@ -42,13 +41,6 @@ urlpatterns = [
     path('orders/', views.order_list, name='order-list'),
     path('order-status/', order_status_list, name='order_status_list'),
     path('status-wise-orders/', views.status_wise_order_list, name='status-wise-orders'),
-    path('order-status-count/',order_status_count,name='order_status_count'),
-    # path('customer-count/', customer_count, name='customer_count'),
-    path('customer-status-count/', customer_status_count, name='customer_status_count'),
-    path('product-count/', product_count, name='product_count'),
-    path('order-status-summary/', order_status_summary, name='order_status_summary'),
-    path('customer-status-summary/',customer_status_summary,name='customer_status_summary'),
-    path('delivered-order-summary/',delivered_order_summary,name='delivered_order_summary'),
 
     path("orders/<int:order_id>/status/",update_order_status,name="update_order_status"),
 
@@ -81,13 +73,11 @@ urlpatterns = [
     path("my-orders/", my_orders),
 
     path('upi-order/<int:order_id>/status-change/',upi_order_status_change,name='upi-order-status-change'),
-    path('pending-upi-order-count/',pending_upi_order_count,name='pending-upi-order-count'),
     path('upi-orders/', views.upi_orders, name='upi-orders'),
 
     path('public-products-list/', PublicProductListAPIView.as_view()),
     path('products-by-date/', OrderDateFilterAPIView.as_view()),
 
-    # path("cart-item-count/", get_cart_item_count, name="cart-item-count"),/
     path('product-filter/', ProductFilterAPIView.as_view()),
 
     path("display-settings/",get_display_settings,name="get_display_settings"),

@@ -1788,9 +1788,39 @@ from django.db.models import Count
 #     })
 from django.db.models import Count
 
+# @api_view(['GET'])
+# @permission_classes([IsAuthenticated])
+# def order_status_count(request):
+
+#     total_orders = Order.objects.count()
+
+#     status_counts = (
+#         Order.objects
+#         .values('order_status')
+#         .annotate(count=Count('id'))
+#         .order_by('order_status')
+#     )
+
+#     return JsonResponse({
+#         "status": True,
+#         "total_orders": total_orders,
+#         "data": list(status_counts)
+#     })
+
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def order_status_count(request):
+
+    # Allow only admins
+    if request.user.role != "admin":
+        return JsonResponse(
+            {
+                "status": False,
+                "message": "Permission denied"
+            },
+            status=403
+        )
 
     total_orders = Order.objects.count()
 
@@ -1801,11 +1831,14 @@ def order_status_count(request):
         .order_by('order_status')
     )
 
-    return JsonResponse({
-        "status": True,
-        "total_orders": total_orders,
-        "data": list(status_counts)
-    })
+    return JsonResponse(
+        {
+            "status": True,
+            "total_orders": total_orders,
+            "data": list(status_counts)
+        }
+    )
+
 ############################ Costmoer count by status api #######################################################################
 
 from django.contrib.auth import get_user_model
@@ -1815,13 +1848,53 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 
 
+# @api_view(['GET'])
+# @permission_classes([IsAuthenticated])
+# def customer_status_count(request):
+
+#     User = get_user_model()
+
+#     total_customers = User.objects.filter(role='user').count()
+
+#     status_counts = (
+#         User.objects
+#         .filter(role='user')
+#         .values('status')
+#         .annotate(count=Count('id'))
+#         .order_by('status')
+#     )
+
+#     pending_approval = User.objects.filter(
+#             role='user',
+#             status='pending'
+#         ).count()
+    
+#     return JsonResponse({
+#         "status": True,
+#         "total_customers": total_customers,
+#         "pending_approval": pending_approval,
+#         "data": list(status_counts)
+#     })
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def customer_status_count(request):
 
+    # Allow only admins
+    if request.user.role != "admin":
+        return JsonResponse(
+            {
+                "status": False,
+                "message": "Permission denied"
+            },
+            status=403
+        )
+
     User = get_user_model()
 
-    total_customers = User.objects.filter(role='user').count()
+    total_customers = User.objects.filter(
+        role='user'
+    ).count()
 
     status_counts = (
         User.objects
@@ -1832,133 +1905,367 @@ def customer_status_count(request):
     )
 
     pending_approval = User.objects.filter(
-            role='user',
-            status='pending'
-        ).count()
-    
+        role='user',
+        status='pending'
+    ).count()
+
     return JsonResponse({
         "status": True,
         "total_customers": total_customers,
         "pending_approval": pending_approval,
         "data": list(status_counts)
     })
+
  ########################################## product count api ########################################################################################
 from django.http import JsonResponse
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from .models import Product
 
+# @api_view(['GET'])
+# @permission_classes([IsAuthenticated])
+# def product_count(request):
+
+#     total_products = Product.objects.count()
+#     active_products = Product.objects.filter(status='Publish').count()
+
+#     return JsonResponse({
+#         "status": True,
+#         "total_products": total_products,
+#         "active_products": active_products
+#     }) 
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def product_count(request):
 
-    total_products = Product.objects.count()
-    active_products = Product.objects.filter(status='Publish').count()
+    # Allow only admins
+    if request.user.role != "admin":
+        return JsonResponse(
+            {
+                "status": False,
+                "message": "Permission denied"
+            },
+            status=403
+        )
 
-    return JsonResponse({
-        "status": True,
-        "total_products": total_products,
-        "active_products": active_products
-    }) 
+    total_products = Product.objects.count()
+
+    active_products = Product.objects.filter(
+        status='Publish'
+    ).count()
+
+    return JsonResponse(
+        {
+            "status": True,
+            "total_products": total_products,
+            "active_products": active_products
+        }
+    )
+
 ######################################## Percentage order status api ########################################################################################
 
 from .models import Order
+# @api_view(['GET'])
+# @permission_classes([IsAuthenticated])
+# def order_status_summary(request):
+
+#     total_orders = Order.objects.count()
+
+#     pending = Order.objects.filter(order_status='Pending').count()
+#     processing = Order.objects.filter(order_status='Processing').count()
+#     shipped = Order.objects.filter(order_status='Shipped').count()
+#     delivered = Order.objects.filter(order_status='Delivered').count()
+#     cancelled = Order.objects.filter(order_status='Cancelled').count()
+
+#     if total_orders > 0:
+#         pending_percent = round((pending / total_orders) * 100, 2)
+#         processing_percent = round((processing / total_orders) * 100, 2)
+#         shipped_percent = round((shipped / total_orders) * 100, 2)
+#         delivered_percent = round((delivered / total_orders) * 100, 2)
+#         cancelled_percent = round((cancelled / total_orders) * 100, 2)
+#     else:
+#         pending_percent = processing_percent = shipped_percent = delivered_percent = cancelled_percent = 0
+
+#     return JsonResponse({
+#         "status": True,
+#         "total_orders": total_orders,
+#         "data": {
+#             "Pending": {
+#                 "count": pending,
+#                 "percentage": pending_percent
+#             },
+#             "Processing": {
+#                 "count": processing,
+#                 "percentage": processing_percent
+#             },
+#             "Shipped": {
+#                 "count": shipped,
+#                 "percentage": shipped_percent
+#             },
+#             "Delivered": {
+#                 "count": delivered,
+#                 "percentage": delivered_percent
+#             },
+#             "Cancelled": {
+#                 "count": cancelled,
+#                 "percentage": cancelled_percent
+#             }
+#         }
+#     })
+
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def order_status_summary(request):
 
+    # Allow only admin users
+    if request.user.role != "admin":
+        return JsonResponse(
+            {
+                "status": False,
+                "message": "Permission denied"
+            },
+            status=403
+        )
+
     total_orders = Order.objects.count()
 
-    pending = Order.objects.filter(order_status='Pending').count()
-    processing = Order.objects.filter(order_status='Processing').count()
-    shipped = Order.objects.filter(order_status='Shipped').count()
-    delivered = Order.objects.filter(order_status='Delivered').count()
-    cancelled = Order.objects.filter(order_status='Cancelled').count()
+    pending = Order.objects.filter(
+        order_status='Pending'
+    ).count()
+
+    processing = Order.objects.filter(
+        order_status='Processing'
+    ).count()
+
+    shipped = Order.objects.filter(
+        order_status='Shipped'
+    ).count()
+
+    delivered = Order.objects.filter(
+        order_status='Delivered'
+    ).count()
+
+    cancelled = Order.objects.filter(
+        order_status='Cancelled'
+    ).count()
 
     if total_orders > 0:
-        pending_percent = round((pending / total_orders) * 100, 2)
-        processing_percent = round((processing / total_orders) * 100, 2)
-        shipped_percent = round((shipped / total_orders) * 100, 2)
-        delivered_percent = round((delivered / total_orders) * 100, 2)
-        cancelled_percent = round((cancelled / total_orders) * 100, 2)
-    else:
-        pending_percent = processing_percent = shipped_percent = delivered_percent = cancelled_percent = 0
+        pending_percent = round(
+            (pending / total_orders) * 100, 2
+        )
 
-    return JsonResponse({
-        "status": True,
-        "total_orders": total_orders,
-        "data": {
-            "Pending": {
-                "count": pending,
-                "percentage": pending_percent
-            },
-            "Processing": {
-                "count": processing,
-                "percentage": processing_percent
-            },
-            "Shipped": {
-                "count": shipped,
-                "percentage": shipped_percent
-            },
-            "Delivered": {
-                "count": delivered,
-                "percentage": delivered_percent
-            },
-            "Cancelled": {
-                "count": cancelled,
-                "percentage": cancelled_percent
+        processing_percent = round(
+            (processing / total_orders) * 100, 2
+        )
+
+        shipped_percent = round(
+            (shipped / total_orders) * 100, 2
+        )
+
+        delivered_percent = round(
+            (delivered / total_orders) * 100, 2
+        )
+
+        cancelled_percent = round(
+            (cancelled / total_orders) * 100, 2
+        )
+
+    else:
+        pending_percent = 0
+        processing_percent = 0
+        shipped_percent = 0
+        delivered_percent = 0
+        cancelled_percent = 0
+
+    return JsonResponse(
+        {
+            "status": True,
+            "total_orders": total_orders,
+            "data": {
+                "Pending": {
+                    "count": pending,
+                    "percentage": pending_percent
+                },
+                "Processing": {
+                    "count": processing,
+                    "percentage": processing_percent
+                },
+                "Shipped": {
+                    "count": shipped,
+                    "percentage": shipped_percent
+                },
+                "Delivered": {
+                    "count": delivered,
+                    "percentage": delivered_percent
+                },
+                "Cancelled": {
+                    "count": cancelled,
+                    "percentage": cancelled_percent
+                }
             }
         }
-    })
+    )
+
 #################################### Customer status summary api ########################################################################################
+
+# @api_view(['GET'])
+# @permission_classes([IsAuthenticated])
+# def customer_status_summary(request):
+
+#     total_customers = User.objects.count()
+#     print(total_customers)
+
+#     approved = User.objects.filter(status='approved').count()
+#     pending = User.objects.filter(status='pending').count()
+#     rejected = User.objects.filter(status='rejected').count()
+
+#     if total_customers > 0:
+#         approved_percent = round((approved / total_customers) * 100, 2)
+#         pending_percent = round((pending / total_customers) * 100, 2)
+#         rejected_percent = round((rejected / total_customers) * 100, 2)
+#     else:
+#         approved_percent = pending_percent = rejected_percent = 0
+
+#     return JsonResponse({
+#         "status": True,
+#         "total_customers": total_customers,
+#         "data": {
+#             "Approved": {
+#                 "count": approved,
+#                 "percentage": approved_percent
+#             },
+#             "Pending": {
+#                 "count": pending,
+#                 "percentage": pending_percent
+#             },
+#             "Rejected": {
+#                 "count": rejected,
+#                 "percentage": rejected_percent
+#             }
+#         }
+#     })
+
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def customer_status_summary(request):
 
-    total_customers = User.objects.count()
-    print(total_customers)
+    # Allow only admins
+    if request.user.role != "admin":
+        return JsonResponse(
+            {
+                "status": False,
+                "message": "Permission denied"
+            },
+            status=403
+        )
 
-    approved = User.objects.filter(status='approved').count()
-    pending = User.objects.filter(status='pending').count()
-    rejected = User.objects.filter(status='rejected').count()
+    total_customers = User.objects.filter(role='user').count()
+
+    approved = User.objects.filter(
+        role='user',
+        status='approved'
+    ).count()
+
+    pending = User.objects.filter(
+        role='user',
+        status='pending'
+    ).count()
+
+    rejected = User.objects.filter(
+        role='user',
+        status='rejected'
+    ).count()
 
     if total_customers > 0:
-        approved_percent = round((approved / total_customers) * 100, 2)
-        pending_percent = round((pending / total_customers) * 100, 2)
-        rejected_percent = round((rejected / total_customers) * 100, 2)
-    else:
-        approved_percent = pending_percent = rejected_percent = 0
+        approved_percent = round(
+            (approved / total_customers) * 100, 2
+        )
 
-    return JsonResponse({
-        "status": True,
-        "total_customers": total_customers,
-        "data": {
-            "Approved": {
-                "count": approved,
-                "percentage": approved_percent
-            },
-            "Pending": {
-                "count": pending,
-                "percentage": pending_percent
-            },
-            "Rejected": {
-                "count": rejected,
-                "percentage": rejected_percent
+        pending_percent = round(
+            (pending / total_customers) * 100, 2
+        )
+
+        rejected_percent = round(
+            (rejected / total_customers) * 100, 2
+        )
+
+    else:
+        approved_percent = 0
+        pending_percent = 0
+        rejected_percent = 0
+
+    return JsonResponse(
+        {
+            "status": True,
+            "total_customers": total_customers,
+            "data": {
+                "Approved": {
+                    "count": approved,
+                    "percentage": approved_percent
+                },
+                "Pending": {
+                    "count": pending,
+                    "percentage": pending_percent
+                },
+                "Rejected": {
+                    "count": rejected,
+                    "percentage": rejected_percent
+                }
             }
         }
-    })
+    )
+
+
 ################################### all Delevered Total Amount api ########################################################################################
 from django.db.models import Sum
 from django.http import JsonResponse
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 
+# @api_view(['GET'])
+# @permission_classes([IsAuthenticated])
+# def delivered_order_summary(request):
+
+#     delivered_orders = Order.objects.filter(order_status='Delivered')
+
+#     total_delivered_orders = delivered_orders.count()
+
+#     total_delivered_amount = delivered_orders.aggregate(
+#         total=Sum('total_amount')
+#     )['total'] or 0
+
+#     total_customers = delivered_orders.values(
+#         'user'
+#     ).distinct().count()
+
+#     return JsonResponse({
+#         "status": True,
+#         "total_delivered_orders": total_delivered_orders,
+#         "total_delivered_amount": str(total_delivered_amount),
+#         "total_customers": total_customers
+#     })
+
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def delivered_order_summary(request):
 
-    delivered_orders = Order.objects.filter(order_status='Delivered')
+    # Allow only admins
+    if request.user.role != "admin":
+        return JsonResponse(
+            {
+                "status": False,
+                "message": "Permission denied"
+            },
+            status=403
+        )
+
+    delivered_orders = Order.objects.filter(
+        order_status='Delivered'
+    )
 
     total_delivered_orders = delivered_orders.count()
 
@@ -1970,12 +2277,14 @@ def delivered_order_summary(request):
         'user'
     ).distinct().count()
 
-    return JsonResponse({
-        "status": True,
-        "total_delivered_orders": total_delivered_orders,
-        "total_delivered_amount": str(total_delivered_amount),
-        "total_customers": total_customers
-    })
+    return JsonResponse(
+        {
+            "status": True,
+            "total_delivered_orders": total_delivered_orders,
+            "total_delivered_amount": str(total_delivered_amount),
+            "total_customers": total_customers
+        }
+    )
 ####################################################  Export api   ##################################################################
 
 logger = logging.getLogger(__name__)
@@ -3506,9 +3815,34 @@ def upi_order_status_change(request, order_id):
     })
 
 
+# @api_view(['GET'])
+# @permission_classes([IsAuthenticated])
+# def pending_upi_order_count(request):
+
+#     pending_count = Order.objects.filter(
+#         payment_method='UPI',
+#         payment_status=False,
+#         order_status='Pending'
+#     ).count()
+
+#     return Response({
+#         "status": True,
+#         "pending_upi_orders": pending_count
+#     })
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def pending_upi_order_count(request):
+
+    # Allow only admins
+    if request.user.role != "admin":
+        return Response(
+            {
+                "status": False,
+                "message": "Permission denied"
+            },
+            status=403
+        )
 
     pending_count = Order.objects.filter(
         payment_method='UPI',
@@ -3516,10 +3850,12 @@ def pending_upi_order_count(request):
         order_status='Pending'
     ).count()
 
-    return Response({
-        "status": True,
-        "pending_upi_orders": pending_count
-    })
+    return Response(
+        {
+            "status": True,
+            "pending_upi_orders": pending_count
+        }
+    )
 
 
 @api_view(['GET'])
