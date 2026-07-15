@@ -38,7 +38,7 @@ urlpatterns = [
     path('products/filter/', ProductPriceFilterAPIView.as_view(),name='product-price-filter'),    ########
     path('products/bulk-import/',BulkProductImportAPIView.as_view(),name='bulk-product-import'), ############
     path('products/list/', views.ProductListAPIView.as_view(), name='product-list'), #################
-    path('orders/', views.order_list, name='order-list'),
+    # path('orders/', views.order_list, name='order-list'),
     path('order-status/', order_status_list, name='order_status_list'),
     path('status-wise-orders/', views.status_wise_order_list, name='status-wise-orders'),
 
@@ -83,6 +83,6 @@ urlpatterns = [
     path("display-settings/",get_display_settings,name="get_display_settings"),
     path("display-settings/update/",update_display_settings,name="update_display_settings"),
 
-    path("last-order-details/",views.get_last_order_details,name="last-order-details"),
+    # path("last-order-details/",views.get_last_order_details,name="last-order-details"),
 
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

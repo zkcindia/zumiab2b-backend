@@ -560,7 +560,7 @@ def publish_brand(request, slug=None):
 ################################################## Product API #####################################################################
 from django.db.models import Case, When, Value, IntegerField
 
-@api_view(["GET", "POST","PUT","DELETE"])
+@api_view(["GET", "POST","PATCH","DELETE"])
 # @permission_classes([IsAuthenticated])
 def product_api(request, slug=None):
 
@@ -611,9 +611,12 @@ def product_api(request, slug=None):
                         "is_active": product.is_active,
 
                         "images": [
-                            request.build_absolute_uri(img.image.url)
-                            for img in images
-                        ]
+                        {
+                            "id": img.id,
+                            "image": request.build_absolute_uri(img.image.url)
+                        }
+                        for img in images
+                    ]
                     }
                 })
 
@@ -784,122 +787,227 @@ def product_api(request, slug=None):
             }
         })
 
-    if request.method == "PUT":
+    if request.method == "PATCH":
 
-        if not pk:
-            return JsonResponse({
-                "status": False,
-                "message": "Product ID required"
-            }, status=400)
+        if not slug:
+            return JsonResponse(
+                {
+                    "status": False,
+                    "message": "Product slug required",
+                },
+                status=400,
+            )
 
         try:
-            product = Product.objects.get(id=pk)
+
+            product = Product.objects.get(
+                slug=slug
+            )
 
             data = request.data
 
-            # Foreign Keys
-            brand_id = data.get("brand")
-            category_id = data.get("category")
+            # BRAND
+            brand_id = data.get(
+                "brand"
+            )
 
             if brand_id:
-                product.brand = Brand.objects.filter(id=brand_id).first()
+
+                product.brand = (
+                    Brand.objects.filter(
+                        id=brand_id
+                    ).first()
+                )
+
+            # CATEGORY
+            category_id = data.get(
+                "category"
+            )
 
             if category_id:
-                product.category = Category.objects.filter(id=category_id).first()
 
-            # Product Fields
-            product.name = data.get("name", product.name)
-            product.item_code = data.get("item_code", product.item_code)
-            product.description = data.get("description", product.description)
+                product.category = (
+                    Category.objects.filter(
+                        id=category_id
+                    ).first()
+                )
 
-            product.mrp = data.get("mrp", product.mrp)
-            product.retail = data.get("retail", product.retail)
-            product.b2b = data.get("b2b", product.b2b)
-
-            product.sku = data.get("sku", product.sku)
-            product.stock_quantity = data.get(
+            # UPDATE FIELDS
+            fields = [
+                "name",
+                "item_code",
+                "description",
+                "mrp",
+                "retail",
+                "b2b",
+                "sku",
                 "stock_quantity",
-                product.stock_quantity
-            )
-            product.min_order_qty = data.get(
                 "min_order_qty",
-                product.min_order_qty
-            )
-
-            product.status = data.get("status", product.status)
-
-            product.is_best_seller = data.get(
+                "status",
                 "is_best_seller",
-                product.is_best_seller
-            )
-
-            product.is_available_on_order = data.get(
                 "is_available_on_order",
-                product.is_available_on_order
-            )
-
-            product.is_active = data.get(
                 "is_active",
-                product.is_active
-            )
+            ]
+
+            for field in fields:
+
+                value = data.get(
+                    field
+                )
+
+                if value is not None:
+
+                    setattr(
+                        product,
+                        field,
+                        value,
+                    )
+
+            # UPDATE SLUG
+            if data.get(
+                "name"
+            ):
+
+                product.slug = (
+                    slugify(
+                        data["name"]
+                    )
+                )
 
             product.save()
 
-            # Add New Images
-            for img in request.FILES.getlist("images"):
+            # DELETE IMAGES
+            deleted_image_ids = (
+                json.loads(
+                    data.get(
+                        "deleted_images",
+                        "[]",
+                    )
+                )
+            )
+
+            for image_id in deleted_image_ids:
+
+                try:
+
+                    image = (
+                        ProductImage.objects.get(
+                            id=image_id,
+                            product=product,
+                        )
+                    )
+
+                    # DELETE FILE FROM MEDIA
+                    if image.image:
+
+                        image.image.delete(
+                            save=False
+                        )
+
+                    # DELETE DB RECORD
+                    image.delete()
+
+                except ProductImage.DoesNotExist:
+
+                    pass
+
+            # ADD NEW IMAGES
+            new_images = (
+                request.FILES.getlist(
+                    "images"
+                )
+            )
+
+            for img in new_images:
+
                 ProductImage.objects.create(
                     product=product,
-                    image=img
+                    image=img,
                 )
 
-            images = ProductImage.objects.filter(product=product)
+            images = (
+                ProductImage.objects.filter(
+                    product=product
+                )
+            )
 
-            return JsonResponse({
-                "status": True,
-                "message": "Product updated successfully",
-                "data": {
-                    "id": product.id,
-                    "name": product.name,
-                    "slug": product.slug,
-                    "item_code": product.item_code,
+            return JsonResponse(
+                {
+                    "status": True,
+                    "message": "Product updated successfully",
+                    "data": {
+                        "id": product.id,
 
-                    "brand": {
-                        "id": product.brand.id,
-                        "name": product.brand.name
-                    } if product.brand else None,
+                        "name": product.name,
 
-                    "category": {
-                        "id": product.category.id,
-                        "name": product.category.name
-                    } if product.category else None,
+                        "slug": product.slug,
 
-                    "description": product.description,
-                    "status": product.status,
+                        "item_code": product.item_code,
 
-                    "mrp": str(product.mrp),
-                    "retail": str(product.retail),
-                    "b2b": str(product.b2b),
+                        "brand": {
+                            "id": product.brand.id,
+                            "name": product.brand.name,
+                        }
+                        if product.brand
+                        else None,
 
-                    "sku": product.sku,
-                    "stock_quantity": product.stock_quantity,
-                    "min_order_qty": product.min_order_qty,
+                        "category": {
+                            "id": product.category.id,
+                            "name": product.category.name,
+                        }
+                        if product.category
+                        else None,
 
-                    "is_best_seller": product.is_best_seller,
-                    "is_available_on_order": product.is_available_on_order,
-                    "is_active": product.is_active,
+                        "description": product.description,
 
-                    "images": [
-                        request.build_absolute_uri(i.image.url)
-                        for i in images
-                    ]
+                        "status": product.status,
+
+                        "mrp": str(
+                            product.mrp
+                        ),
+
+                        "retail": str(
+                            product.retail
+                        ),
+
+                        "b2b": str(
+                            product.b2b
+                        ),
+
+                        "sku": product.sku,
+
+                        "stock_quantity": product.stock_quantity,
+
+                        "min_order_qty": product.min_order_qty,
+
+                        "is_best_seller": product.is_best_seller,
+
+                        "is_available_on_order": product.is_available_on_order,
+
+                        "is_active": product.is_active,
+
+                        "images": [
+                            {
+                                "id": image.id,
+                                "url": request.build_absolute_uri(
+                                    image.image.url
+                                ),
+                            }
+                            for image in images
+                        ],
+                    },
                 }
-            })
+            )
 
         except Product.DoesNotExist:
-            return JsonResponse({
-                "status": False,
-                "message": "Product not found"
-            }, status=404)
+
+            return JsonResponse(
+                {
+                    "status": False,
+                    "message": "Product not found",
+                },
+                status=404,
+            )
 
     if request.method == "DELETE":
 
