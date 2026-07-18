@@ -257,7 +257,10 @@ class OrderItem(models.Model):
     price = models.DecimalField(max_digits=10,decimal_places=2)
 
     def __str__(self):
-        return f"{self.product.name} x {self.quantity}"
+        if self.product:
+            return f"{self.product.name} x {self.quantity}"
+
+        return f"Deleted Product x {self.quantity}"
     
 
 class DisplaySetting(models.Model):
