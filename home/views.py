@@ -1749,6 +1749,7 @@ def my_orders(request):
             "address": {
                 "full_name": order.address.full_name if order.address else "",
                 "mobile_number": order.address.mobile_number if order.address else "",
+                "alternate_mobile_number": order.address.alternate_mobile_number if order.address else "",
                 "address_line_1": order.address.address_line_1 if order.address else "",
                 "address_line_2": order.address.address_line_2 if order.address else "",
                 "city": order.address.city if order.address else "",

@@ -727,6 +727,7 @@ def order_list(request):
             "address": {
                 "full_name": order.address.full_name if order.address else "",
                 "mobile_number": order.address.mobile_number if order.address else "",
+                "alternate_mobile_number": order.address.alternate_mobile_number if order.address else "",
                 "address_line_1": order.address.address_line_1 if order.address else "",
                 "address_line_2": order.address.address_line_2 if order.address else "",
                 "city": order.address.city if order.address else "",
@@ -878,3 +879,170 @@ def get_last_order_details(request):
         "count": len(data),
         "data": data
     })
+
+
+
+################################################################ Manager #################################################################
+
+@api_view(["GET", "POST"])
+@permission_classes([IsAuthenticated])
+def manager_product_api(request, slug=None):
+
+    # Manager only
+    if request.user.role != "manager":
+        return JsonResponse(
+            {
+                "status": False,
+                "message": "Only manager can access this API"
+            },
+            status=403
+        )
+
+
+    # ================= GET =================
+    if request.method == "GET":
+
+        # Single product
+        if slug:
+            try:
+                product = Product.objects.select_related(
+                    "brand",
+                    "category"
+                ).get(slug=slug)
+
+                images = ProductImage.objects.filter(product=product)
+
+                return JsonResponse({
+                    "status": True,
+                    "data": {
+                        "id": product.id,
+                        "name": product.name,
+                        "slug": product.slug,
+                        "images": [
+                            request.build_absolute_uri(img.image.url)
+                            for img in images
+                        ]
+                    }
+                })
+
+            except Product.DoesNotExist:
+                return JsonResponse(
+                    {
+                        "status": False,
+                        "message": "Product not found"
+                    },
+                    status=404
+                )
+
+
+        # Product list
+        products = Product.objects.select_related(
+            "brand",
+            "category"
+        ).all()
+
+
+        data = []
+
+        for product in products:
+
+            data.append({
+                "id": product.id,
+                "name": product.name,
+                "slug": product.slug,
+            })
+
+
+        return JsonResponse({
+            "status": True,
+            "data": data
+        })
+
+
+    # ================= POST =================
+    if request.method == "POST":
+
+        brand = Brand.objects.filter(
+            id=request.data.get("brand")
+        ).first()
+
+        category = Category.objects.filter(
+            id=request.data.get("category")
+        ).first()
+
+        name = request.data.get("name")
+
+        product = Product.objects.create(
+            name=name,
+            slug=slugify(name),
+
+            item_code=request.data.get("item_code"),
+
+            brand=brand,
+            category=category,
+
+            description=request.data.get("description"),
+
+            status=request.data.get("status", "Publish"),
+
+            mrp=request.data.get("mrp") or 0,
+            retail=request.data.get("retail") or 0,
+            b2b=request.data.get("b2b") or 0,
+
+            sku=request.data.get("sku"),
+
+            stock_quantity=request.data.get("stock_quantity") or 0,
+            min_order_qty=request.data.get("min_order_qty") or 1,
+
+            is_best_seller=request.data.get("is_best_seller", False),
+            is_available_on_order=request.data.get("is_available_on_order", False),
+            is_active=request.data.get("is_active", True),
+        )
+
+        image_urls = []
+
+        for image in request.FILES.getlist("images"):
+
+            obj = ProductImage.objects.create(
+                product=product,
+                image=image
+            )
+
+            image_urls.append(
+                request.build_absolute_uri(obj.image.url)
+            )
+
+        return JsonResponse({
+            "status": True,
+            "message": "Product created successfully",
+
+            "data": {
+                "id": product.id,
+                "name": product.name,
+                "slug": product.slug,
+                "item_code": product.item_code,
+
+                "brand": {
+                    "id": product.brand.id,
+                    "name": product.brand.name
+                } if product.brand else None,
+
+                "category": {
+                    "id": product.category.id,
+                    "name": product.category.name
+                } if product.category else None,
+
+                "description": product.description,
+                "status": product.status,
+
+                "mrp": str(product.mrp),
+                "retail": str(product.retail),
+                "b2b": str(product.b2b),
+
+                "sku": product.sku,
+                "stock_quantity": product.stock_quantity,
+                "min_order_qty": product.min_order_qty,
+
+                "images": image_urls
+            }
+        })
