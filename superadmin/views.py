@@ -1046,3 +1046,31 @@ def manager_product_api(request, slug=None):
                 "images": image_urls
             }
         })
+    
+
+##################################################### QR code #######################################################################
+
+import qrcode 
+from io import BytesIO 
+from django.http import HttpResponse 
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def generate_upi_qr(request): 
+    amount = request.GET.get("amount", "0") 
+    upi_id = "eazypay.571345224@icici" 
+    merchant_name = "M/S.LIGHT HUB" 
+    upi_link = ( f"upi://pay?" 
+                f"pa={upi_id}" 
+                f"&pn={merchant_name}" 
+                f"&am={amount}" 
+                f"&cu=INR" ) 
+    qr = qrcode.make(upi_link) 
+    buffer = BytesIO() 
+    qr.save(buffer, format="PNG") 
+    buffer.seek(0)
+    
+    return HttpResponse( 
+        buffer.getvalue(), 
+        content_type="image/png", 
+        )

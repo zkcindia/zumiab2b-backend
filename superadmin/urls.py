@@ -28,5 +28,7 @@ urlpatterns = [
     path('delivered-order-summary/',delivered_order_summary,name='delivered_order_summary'),
     path('pending-upi-order-count/',pending_upi_order_count,name='pending-upi-order-count'),
     path("last-order-details/",views.get_last_order_details,name="last-order-details"),
+
+    path("upi-qr/", generate_upi_qr),
     
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
