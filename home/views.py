@@ -3138,9 +3138,9 @@ def change_default_status(request):
     })
 
 
-#################################################### COD ###############################################################
+#################################################### CART ###############################################################
 
-@api_view(['POST'])
+@api_view(['POST'])                            # api for COD inside cart
 @permission_classes([IsAuthenticated])
 def place_order(request):
     user = request.user
@@ -3199,6 +3199,101 @@ def place_order(request):
         "total_amount": str(order.total_amount),
         "payment_method": "COD"
     })
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def create_cart_upi_order(request):
+
+    user = request.user
+
+    address_id = request.data.get("address_id")
+    total_amount = request.data.get("total_amount")
+    payment_method = request.data.get("payment_method")
+    transaction_id = request.data.get("transaction_id")
+    transaction_screenshot = request.FILES.get("transaction_screenshot")
+
+    if not address_id:
+        return JsonResponse({
+            "status": False,
+            "message": "Address is required"
+        }, status=400)
+
+    if not total_amount:
+        return JsonResponse({
+            "status": False,
+            "message": "Total amount is required"
+        }, status=400)
+
+    if payment_method != "UPI":
+        return JsonResponse({
+            "status": False,
+            "message": "Payment method must be UPI"
+        }, status=400)
+
+    if not transaction_id:
+        return JsonResponse({
+            "status": False,
+            "message": "Transaction ID is required"
+        }, status=400)
+
+    if not transaction_screenshot:
+        return JsonResponse({
+            "status": False,
+            "message": "Transaction screenshot is required"
+        }, status=400)
+
+    address = get_object_or_404(
+        Address,
+        id=address_id,
+        user=user
+    )
+
+    cart = get_object_or_404(Cart, user=user)
+    cart_items = cart.items.select_related("product")
+
+    if not cart_items.exists():
+        return JsonResponse({
+            "status": False,
+            "message": "Cart is empty"
+        }, status=400)
+
+    order = Order.objects.create(
+        user=user,
+        address=address,
+        total_amount=total_amount,
+        payment_method="UPI",
+        payment_status=False,
+        transaction_id=transaction_id,
+        transaction_screenshot=transaction_screenshot
+    )
+
+    for item in cart_items:
+        OrderItem.objects.create(
+            order=order,
+            product=item.product,
+            quantity=item.quantity,
+            price=item.product.retail
+        )
+
+    cart_items.delete()
+
+    return JsonResponse({
+        "status": True,
+        "message": "Order created successfully",
+        "order_id": order.id,
+        "payment_method": order.payment_method,
+        "transaction_id": order.transaction_id,
+        "order_status": order.order_status,
+        "payment_status": order.payment_status,
+        "total_amount": str(order.total_amount),
+        "transaction_screenshot": request.build_absolute_uri(
+            order.transaction_screenshot.url
+        ) if order.transaction_screenshot else None
+    })
+
+
+############################################ BUY NOW ###########################################################
 
 
 @api_view(['POST'])

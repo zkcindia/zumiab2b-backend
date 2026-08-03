@@ -1,0 +1,103 @@
+# =========================
+# Python
+# =========================
+
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environment
+venv/
+env/
+.venv/
+
+# Python cache
+.pytest_cache/
+.mypy_cache/
+
+
+# =========================
+# Django
+# =========================
+
+# Database
+db.sqlite3
+*.sqlite3
+
+# Django media uploads
+media/
+
+# Static collected files
+staticfiles/
+
+# Django secrets
+*.log
+
+
+# =========================
+# Environment Variables
+# =========================
+
+.env
+.env.*
+!.env.example
+
+
+# =========================
+# Node / React / Vite
+# =========================
+
+node_modules/
+dist/
+build/
+
+# Vite cache
+.vite/
+
+# npm logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+
+# =========================
+# IDE / Editor
+# =========================
+
+.vscode/
+.idea/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+
+# =========================
+# Coverage / Testing
+# =========================
+
+htmlcov/
+.coverage
+coverage.xml
+
+
+# =========================
+# Uploaded files
+# =========================
+
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.gif
+*.pdf
+
+
+# =========================
+# Backup files
+# =========================
+
+*.bak
+*.swp
+*.tmp
+*.old

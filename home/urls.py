@@ -63,9 +63,10 @@ urlpatterns = [
     path("change-status/", change_default_status),
     path('price-range/', product_list_api, name='product_list_api'),
 
-    path("place-order/", place_order, name="place_order"),
     path("buy-now/", buy_now, name="buy_now"),
     path("create-upi-order/",create_upi_order,name="create_upi_order"),
+    path("place-order/", place_order, name="place_order"),
+    path("create-cart-upi-order/",create_cart_upi_order,name="create_cart_upi_order"),
     path("my-upi-orders/",my_upi_orders,name="my_upi_orders"),
 
     path("upi-orders-by-date/",upi_orders_by_date,name="upi_orders_by_date"),
