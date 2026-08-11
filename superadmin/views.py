@@ -47,7 +47,10 @@ def get_all_users(request):
 
         # Base queryset
         users = User.objects.filter(
-            role='user'
+            role__in=[
+                'retail',
+                'b2b'
+            ]
         ).order_by('-created_at')
 
         # Apply status filter
@@ -84,7 +87,7 @@ def get_all_users(request):
 
                 'business_name': user_obj.business_name,
 
-                'business_category': user_obj.business_category,
+                # 'business_category': user_obj.business_category,/
 
                 'role': user_obj.role,
 
@@ -721,6 +724,7 @@ def order_list(request):
             "business_name": order.user.business_name,
             "email": order.user.email,
             "phone": order.user.phone,
+            "role": order.user.role,
             "total_amount": str(order.total_amount),
             "payment_method": order.payment_method,
 
@@ -860,7 +864,7 @@ def get_last_order_details(request):
         return JsonResponse({
             "status": False,
             "message": "No orders found."
-        }, status=404)
+        }, status=200)
 
     data = []
 
@@ -1074,3 +1078,105 @@ def generate_upi_qr(request):
         buffer.getvalue(), 
         content_type="image/png", 
         )
+
+###################################################################################################################################
+from django.db.models import Q
+
+@api_view(["GET"])
+def product_search(request):
+
+    search = request.GET.get("search", "").strip()
+
+    limit = int(request.GET.get("limit", 10))
+    offset = int(request.GET.get("offset", 0))
+
+    products = Product.objects.select_related(
+        "brand",
+        "category"
+    ).prefetch_related(
+        "images"
+    ).filter(
+        status="Publish"
+    )
+
+    if search:
+
+        parts = search.split()
+
+        if len(parts) == 1:
+
+            products = products.filter(
+                Q(name__icontains=parts[0]) |
+                Q(item_code__icontains=parts[0]) |
+                Q(brand__name__icontains=parts[0])
+            )
+
+
+        elif len(parts) == 2:
+
+            products = products.filter(
+                Q(name__icontains=parts[0]) &
+                Q(item_code__icontains=parts[1])
+            )
+
+
+        elif len(parts) >= 3:
+
+            products = products.filter(
+                Q(name__icontains=parts[0]) &
+                Q(item_code__icontains=parts[1]) &
+                Q(brand__name__icontains=parts[2])
+            )
+
+    total = products.count()
+
+    products = products[offset:offset + limit]
+
+    data = []
+
+    for product in products:
+
+        image_list = [
+            request.build_absolute_uri(img.image.url)
+            for img in product.images.all()
+            if img.image
+        ]
+
+        data.append({
+            "id": product.id,
+            "name": product.name,
+            "slug": product.slug,
+            "item_code": product.item_code,
+
+            "brand": {
+                "id": product.brand.id,
+                "name": product.brand.name
+            } if product.brand else None,
+
+            "category": {
+                "id": product.category.id,
+                "name": product.category.name
+            } if product.category else None,
+
+            "description": product.description,
+            "status": product.status,
+
+            "mrp": str(product.mrp),
+            "retail": str(product.retail),
+            "b2b": str(product.b2b),
+
+            "sku": product.sku,
+            "stock_quantity": product.stock_quantity,
+            "min_order_qty": product.min_order_qty,
+
+            "images": image_list
+        })
+
+    return JsonResponse({
+        "status": True,
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "has_more": offset + limit < total,
+        "data": data
+    })

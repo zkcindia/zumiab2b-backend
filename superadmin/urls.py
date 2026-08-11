@@ -30,5 +30,7 @@ urlpatterns = [
     path("last-order-details/",views.get_last_order_details,name="last-order-details"),
 
     path("upi-qr/", generate_upi_qr),
+
+    path('search-items/', views.product_search, name='search-items'),
     
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

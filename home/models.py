@@ -38,16 +38,17 @@ class User(AbstractBaseUser, PermissionsMixin):
     otp_code = models.CharField(max_length=6, blank=True, null=True)
     image = models.ImageField(upload_to='avtar/', default='avtar/avtar.png', blank=True, null=True)
     business_name = models.CharField(max_length=200, blank=True, null=True)
-    business_category = models.CharField(max_length=50, blank=True, null=True)
+    # business_category = models.CharField(max_length=50, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     gst_number = models.CharField(max_length=30, blank=True, null=True)
     ROLE_CHOICES = (
         ('admin', 'Admin'),
-        ('account', 'Account'),
+        ('b2b', 'B2B'),
+        ('retail', 'Retail'),
         ('manager', 'Manager'),
-        ('user', 'User'),
+        # ('user', 'User'),
     )
-    role = models.CharField(max_length=10, choices=ROLE_CHOICES, default='user')
+    role = models.CharField(max_length=10, choices=ROLE_CHOICES)
     STATUS_CHOICES = (
         ('pending', 'Pending'),
         ('approved', 'Approved'),

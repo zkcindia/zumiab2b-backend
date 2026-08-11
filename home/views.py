@@ -78,7 +78,7 @@ def signup(request):
         email = request.POST.get('email')
         business_name = request.POST.get('business_name')
         gst_number = request.POST.get('gst_number')
-        business_category = request.POST.get('business_category')
+        role = request.POST.get('role')
         image = request.FILES.get('image')
 
         # Validate email
@@ -105,11 +105,11 @@ def signup(request):
             email=email,
             business_name=business_name,
             gst_number =gst_number ,
-            business_category=business_category,
+            role=role,
             image=image,
             otp_code=None,
             is_active=False,
-            role='user'
+            # role='user'/
         )
 
         # Full image URL
@@ -126,7 +126,7 @@ def signup(request):
             'mobile': user.phone,
             'business_name': user.business_name,
             'gst_number' : user.gst_number,
-            'business_category': user.business_category,
+            # 'business_category': user.business_category,
             'role': user.role,
             'is_active': user.is_active,
             'csrf_token': csrf_token,
@@ -564,9 +564,9 @@ from django.db.models import Case, When, Value, IntegerField
 # @permission_classes([IsAuthenticated])
 def product_api(request, slug=None):
 
-    # ================= GET =================
     if request.method == "GET":
 
+        # ================= SINGLE PRODUCT =================
         if slug:
             try:
                 product = Product.objects.select_related(
@@ -575,7 +575,6 @@ def product_api(request, slug=None):
                 ).get(slug=slug)
 
                 images = ProductImage.objects.filter(product=product)
-                
 
                 return JsonResponse({
                     "status": True,
@@ -583,6 +582,7 @@ def product_api(request, slug=None):
                         "id": product.id,
                         "name": product.name,
                         "slug": product.slug,
+
                         "item_code": product.item_code,
 
                         "brand": {
@@ -590,12 +590,15 @@ def product_api(request, slug=None):
                             "name": product.brand.name
                         } if product.brand else None,
 
+
                         "category": {
                             "id": product.category.id,
                             "name": product.category.name
                         } if product.category else None,
 
+
                         "description": product.description,
+
                         "status": product.status,
 
                         "mrp": str(product.mrp),
@@ -603,100 +606,134 @@ def product_api(request, slug=None):
                         "b2b": str(product.b2b),
 
                         "sku": product.sku,
+
                         "stock_quantity": product.stock_quantity,
+
                         "min_order_qty": product.min_order_qty,
 
-                        # "is_best_seller": product.is_best_seller,/
-                        # "is_available_on_order": product.is_available_on_order,
                         "is_active": product.is_active,
 
+
                         "images": [
-                        {
-                            "id": img.id,
-                            "image": request.build_absolute_uri(img.image.url)
-                        }
-                        for img in images
-                    ]
+                            {
+                                "id": img.id,
+                                "image": request.build_absolute_uri(img.image.url)
+                            }
+                            for img in images
+                        ]
                     }
                 })
 
+
             except Product.DoesNotExist:
+
                 return JsonResponse({
                     "status": False,
                     "message": "Product not found"
                 }, status=404)
 
-        page = int(request.GET.get("page", 1))
+
+
+        # ================= PRODUCT LIST =================
+
         limit = int(request.GET.get("limit", 10))
+        offset = int(request.GET.get("offset", 0))
+
 
         products = Product.objects.select_related(
             "brand",
             "category"
-        ).annotate(
-            status_order=Case(
-                When(status="Publish", then=Value(1)),
-                When(status="Unpublish", then=Value(2)),
-                default=Value(3),
-                output_field=IntegerField()
-            )
-        ).order_by("status_order", "-id")
+        ).filter(
+            status="Publish"
+        ).order_by("-id")
 
-        paginator = Paginator(products, limit)
 
-        try:
-            page_data = paginator.page(page)
+        total = products.count()
 
-        except EmptyPage:
-            return JsonResponse({
-                "status": False,
-                "message": "No data found"
-            }, status=404)
+
+        page_data = products[offset:offset + limit]
+
 
         result = []
 
+
         for product in page_data:
 
-            images = ProductImage.objects.filter(product=product)
+            images = ProductImage.objects.filter(
+                product=product
+            )
+
 
             result.append({
+
                 "id": product.id,
+
                 "name": product.name,
+
                 "slug": product.slug,
+
                 "item_code": product.item_code,
+
 
                 "brand": {
                     "id": product.brand.id,
                     "name": product.brand.name
                 } if product.brand else None,
 
+
                 "category": {
                     "id": product.category.id,
                     "name": product.category.name
                 } if product.category else None,
 
+
                 "description": product.description,
+
+
                 "status": product.status,
 
+
                 "mrp": str(product.mrp),
+
                 "retail": str(product.retail),
+
                 "b2b": str(product.b2b),
 
+
                 "sku": product.sku,
+
+
                 "stock_quantity": product.stock_quantity,
+
+
                 "min_order_qty": product.min_order_qty,
 
+
                 "images": [
-                    request.build_absolute_uri(img.image.url)
+                    {
+                        "id": img.id,
+                        "image": request.build_absolute_uri(img.image.url)
+                    }
                     for img in images
                 ]
+
             })
 
+
         return JsonResponse({
+
             "status": True,
-            "total": paginator.count,
-            "page": page,
+
+            "total": total,
+
             "limit": limit,
+
+            "offset": offset,
+
+            "has_more": (offset + limit) < total,
+
             "data": result
+
         })
 
     # ================= POST =================
@@ -1033,7 +1070,146 @@ def product_api(request, slug=None):
                 "message": "Product not found"
             }, status=404)
         
-#################################################  product status changes  #####################################################
+
+@api_view(["GET"])
+def product_api_by_slug(request, slug=None):
+
+    if request.method == "GET":
+
+        if not slug:
+            return JsonResponse({
+                "status": False,
+                "message": "Slug is required"
+            }, status=400)
+
+
+        try:
+
+            product = Product.objects.select_related(
+                "brand",
+                "category"
+            ).get(slug=slug)
+
+
+            images = ProductImage.objects.filter(
+                product=product
+            )
+
+
+            # ======================
+            # DISPLAY SETTINGS
+            # ======================
+            display, _ = DisplaySetting.objects.get_or_create(id=1)
+
+
+            # ======================
+            # BASIC PRODUCT DATA
+            # ======================
+            product_data = {
+
+                "id": product.id,
+
+                "name": product.name,
+
+                "slug": product.slug,
+
+                "status": product.status,
+
+                "min_order_qty": product.min_order_qty,
+
+                "is_active": product.is_active,
+
+
+                "images": [
+                    {
+                        "id": img.id,
+                        "image": request.build_absolute_uri(img.image.url)
+                    }
+                    for img in images
+                ]
+
+            }
+
+
+            # ======================
+            # DISPLAY SETTING FIELDS
+            # ======================
+
+            if display.item_code:
+                product_data["item_code"] = product.item_code
+
+
+            if display.mrp:
+                product_data["mrp"] = str(product.mrp)
+
+
+            if display.retail:
+                product_data["retail"] = str(product.retail)
+
+
+            if display.b2b:
+                product_data["b2b"] = str(product.b2b)
+
+
+            if display.sku:
+                product_data["sku"] = product.sku
+
+
+            if display.stock_quantity:
+                product_data["stock_quantity"] = product.stock_quantity
+
+
+            if display.brand:
+                product_data["brand"] = (
+
+                    {
+                        "id": product.brand.id,
+                        "name": product.brand.name
+                    }
+
+                    if product.brand else None
+
+                )
+
+
+            if display.description:
+                product_data["description"] = product.description
+
+
+
+            # Category always visible
+            product_data["category"] = (
+
+                {
+                    "id": product.category.id,
+                    "name": product.category.name
+                }
+
+                if product.category else None
+
+            )
+
+
+            return JsonResponse({
+
+                "status": True,
+
+                "data": product_data
+
+            })
+
+
+        except Product.DoesNotExist:
+
+            return JsonResponse({
+
+                "status": False,
+
+                "message": "Product not found"
+
+            }, status=404)
+        
+##################################################################  product status changes  #####################################################
 
 @csrf_exempt
 def product_status_api(request, slug):
@@ -2662,6 +2838,7 @@ def add_to_cart(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_cart(request):
+
     user = request.user
 
     # ======================
@@ -2676,6 +2853,13 @@ def get_cart(request):
             "data": []
         }, status=404)
 
+
+    # ======================
+    # DISPLAY SETTINGS
+    # ======================
+    display, _ = DisplaySetting.objects.get_or_create(id=1)
+
+
     # ======================
     # GET CART ITEMS
     # ======================
@@ -2683,8 +2867,11 @@ def get_cart(request):
 
     data = []
 
+
     for item in cart_items:
+
         product = item.product
+
 
         # ======================
         # PRODUCT IMAGES
@@ -2694,41 +2881,90 @@ def get_cart(request):
         image_list = [
             request.build_absolute_uri(img.image.url)
             for img in images
+            if img.image
         ]
+
 
         # ======================
         # BUILD ITEM RESPONSE
         # ======================
-        data.append({
+        product_data = {
+
             "cart_item_id": item.id,
+
             "quantity": item.quantity,
 
             "id": product.id,
+
             "name": product.name,
+
             "slug": product.slug,
-            "item_code": product.item_code,
-            "mrp": str(product.mrp),
-            "retail": str(product.retail),
-            "b2b": str(product.b2b),
-            "sku": product.sku,
+
             "status": product.status,
-            "brand": str(product.brand),
-            "category": str(product.category),
-            "description": product.description,
-            "stock_quantity": product.stock_quantity,
+
             "min_order_qty": product.min_order_qty,
 
             "images": image_list
-        })
+        }
+
+
+        # ======================
+        # DISPLAY SETTING FIELDS
+        # ======================
+
+        if display.item_code:
+            product_data["item_code"] = product.item_code
+
+
+        if display.mrp:
+            product_data["mrp"] = str(product.mrp)
+
+
+        if display.retail:
+            product_data["retail"] = str(product.retail)
+
+
+        if display.b2b:
+            product_data["b2b"] = str(product.b2b)
+
+
+        if display.sku:
+            product_data["sku"] = product.sku
+
+
+        if display.stock_quantity:
+            product_data["stock_quantity"] = product.stock_quantity
+
+
+        if display.brand:
+            product_data["brand"] = str(product.brand)
+
+
+        if display.description:
+            product_data["description"] = product.description
+
+
+        # Category always visible
+        product_data["category"] = str(product.category)
+
+
+        data.append(product_data)
+
+
 
     # ======================
     # RESPONSE
     # ======================
     return Response({
+
         "status": True,
+
         "message": "Cart fetched successfully",
+
         "total_items": len(data),
+
         "data": data
+
     }, status=200)
     
 #################### delete item from cart api #############################
@@ -3667,7 +3903,7 @@ def my_upi_orders(request):
                 "email": order.user.email,
                 "phone": order.user.phone,
                 "business_name": order.user.business_name,
-                "business_category": order.user.business_category,
+                # "business_category": order.user.business_category,/
                 "role": order.user.role,
                 "status": order.user.status,
 

@@ -5,8 +5,8 @@ from django.contrib import admin
 from .models import *
 
 @admin.register(User)
-class AdminUser(admin.ModelAdmin):
-    list_display = ['id','username','phone','email','otp_code','image','business_name','business_category','gst_number','role','status','is_active','created_at']
+class User(admin.ModelAdmin):
+    list_display = ['id','username','phone','email','otp_code','image','business_name','gst_number','role','status','is_active','created_at']
 
 @admin.register(Category)
 class Category(admin.ModelAdmin):
