@@ -29,7 +29,7 @@ urlpatterns = [
     path('pending-upi-order-count/',pending_upi_order_count,name='pending-upi-order-count'),
     path("last-order-details/",views.get_last_order_details,name="last-order-details"),
 
-    path("upi-qr/", generate_upi_qr),
+    path("upi-qr/", generate_upi_qr),     # ooooooooooooooooooooooooooookkkkkkk
 
     path('search-items/', views.product_search, name='search-items'),
     
