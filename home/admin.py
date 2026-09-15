@@ -54,3 +54,7 @@ class OrderItem(admin.ModelAdmin):
 @admin.register(DisplaySetting)
 class DisplaySettingAdmin(admin.ModelAdmin):
     list_display = ['mrp','retail','b2b','description','brand','item_code','sku','stock_quantity','updated_at']
+
+@admin.register(Inquiry)
+class Inquiry(admin.ModelAdmin):
+    list_display = ['id','user','product','message','created_at']

@@ -158,7 +158,7 @@ def update_user_status(request, user_id):
         try:
             user = User.objects.get(
                 id=user_id,
-                role='user'
+                role__in=['b2b', 'retail']
             )
 
         except User.DoesNotExist:
@@ -177,7 +177,7 @@ def update_user_status(request, user_id):
             }, status=400)
 
         # Frontend login URL
-        login_url = "http://192.168.29.78:8000/login"
+        login_url = "http://192.168.29.78:8001/login"
 
         # ================= APPROVED =================
 
@@ -254,19 +254,19 @@ def customer_status_count(request):
     User = get_user_model()
 
     total_customers = User.objects.filter(
-        role='user'
+        role__in=['b2b', 'retail']
     ).count()
 
     status_counts = (
         User.objects
-        .filter(role='user')
+        .filter(role__in=['b2b', 'retail'])
         .values('status')
         .annotate(count=Count('id'))
         .order_by('status')
     )
 
     pending_approval = User.objects.filter(
-        role='user',
+        role__in=['b2b', 'retail'],
         status='pending'
     ).count()
 
@@ -420,20 +420,20 @@ def customer_status_summary(request):
             status=403
         )
 
-    total_customers = User.objects.filter(role='user').count()
+    total_customers = User.objects.filter(role__in=['b2b', 'retail']).count()
 
     approved = User.objects.filter(
-        role='user',
+        role__in=['b2b', 'retail'],
         status='approved'
     ).count()
 
     pending = User.objects.filter(
-        role='user',
+        role__in=['b2b', 'retail'],
         status='pending'
     ).count()
 
     rejected = User.objects.filter(
-        role='user',
+        role__in=['b2b', 'retail'],
         status='rejected'
     ).count()
 
@@ -720,7 +720,7 @@ def order_list(request):
             "order_id": order.id,
             "status": order.order_status,
             "transaction_id": order.transaction_id,
-            "customer_name": order.address.full_name if order.address else "",
+            "customer_name": order.user.username if order.address else "",
             "business_name": order.user.business_name,
             "email": order.user.email,
             "phone": order.user.phone,
@@ -849,16 +849,72 @@ def order_details(request, order_id):
 ########################################################################################################################################
 
 
+# @api_view(["GET"])
+# @permission_classes([IsAuthenticated])
+# def get_last_order_details(request):
+
+#     orders = (
+#         Order.objects
+#         .exclude(remarks__isnull=True)
+#         .exclude(remarks="")
+#         .order_by("-created_at")
+#     )
+
+#     if not orders.exists():
+#         return JsonResponse({
+#             "status": False,
+#             "message": "No orders found."
+#         }, status=200)
+
+#     data = []
+
+#     for order in orders:
+#         data.append({
+#             "company_name": order.user.business_name,
+#             "email": order.user.email,
+#             "mobile": order.user.phone,
+#             "remarks": order.remarks,
+#             "order_id": order.id,
+#             "created_at": order.created_at,
+#         })
+
+#     return JsonResponse({
+#         "status": True,
+#         "count": len(data),
+#         "data": data
+#     })
+
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def get_last_order_details(request):
 
+    # Get filter from URL
+    order_type = request.GET.get("type", "all").lower()
+
+    # Basic orders query
     orders = (
         Order.objects
+        .select_related("user")
         .exclude(remarks__isnull=True)
         .exclude(remarks="")
         .order_by("-created_at")
     )
+
+    # B2B / Retail filter
+    if order_type == "b2b":
+        orders = orders.filter(user__role="b2b")
+
+    elif order_type == "retail":
+        orders = orders.filter(user__role="retail")
+
+    elif order_type == "all":
+        pass
+
+    else:
+        return JsonResponse({
+            "status": False,
+            "message": "Invalid type. Use b2b, retail, or all."
+        }, status=400)
 
     if not orders.exists():
         return JsonResponse({
@@ -880,6 +936,7 @@ def get_last_order_details(request):
 
     return JsonResponse({
         "status": True,
+        "type": order_type,
         "count": len(data),
         "data": data
     })
@@ -1178,5 +1235,343 @@ def product_search(request):
         "limit": limit,
         "offset": offset,
         "has_more": offset + limit < total,
+        "data": data
+    })
+
+
+############################# My UPI Orders  B2B Or Retail  ########################################################################
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def my_upi_orders_filter(request):
+
+    # Get B2B / Retail filter
+    role = request.GET.get("role")
+
+    # Base queryset
+    if request.user.role == "admin":
+        orders = Order.objects.filter(payment_method='UPI')
+    else:
+        orders = Order.objects.filter(user=request.user,payment_method='UPI')
+
+    # B2B / Retail filter
+    if role:
+        role = role.lower()
+
+        if role not in ["b2b", "retail"]:
+            return JsonResponse({
+                "status": False,
+                "message": "Invalid role. Use 'b2b' or 'retail'."
+            }, status=400)
+
+        orders = orders.filter(user__role__iexact=role)
+
+    orders = (
+        orders
+        .select_related(
+            'user',
+            'address'
+        )
+        .prefetch_related(
+            'items__product',
+            'items__product__brand',
+            'items__product__category',
+            'items__product__images'
+        )
+        .order_by('-created_at')
+    )
+    data = []
+    for order in orders:
+        products = []
+        for item in order.items.all():
+            product = item.product
+            product_images = []
+            if product:
+                for img in product.images.all():
+                    if img.image:
+                        product_images.append(
+                            request.build_absolute_uri(
+                                img.image.url
+                            )
+                        )
+            products.append({
+                "order_item_id": item.id,
+                "quantity": item.quantity,
+                "price": str(item.price),
+                "product": {
+                    "id": product.id if product else None,
+                    "name": product.name if product else None,
+                    "slug": product.slug if product else None,
+                    "item_code": product.item_code if product else None,
+                    "brand": (product.brand.name if product and product.brand else None),
+                    "category": (product.category.name if product and product.category else None ),
+                    "mrp": (str(product.mrp)if product else None),
+                    "retail": (str(product.retail)if product else None),
+                    "b2b": (str(product.b2b)if product else None),
+                    "sku": (product.sku if product else None),
+
+                    "stock_quantity": (product.stock_quantity if product else None),
+
+                    "min_order_qty": (product.min_order_qty if product else None),
+                    "image": (
+                        request.build_absolute_uri(
+                            product.image.url
+                        )
+                        if product and product.image else None
+                    ),
+                    "images": product_images,
+                    "status": (
+                        product.status
+                        if product else None
+                    ),
+
+                    "is_active": (
+                        product.is_active
+                        if product else False
+                    ),
+
+                    "is_best_seller": (
+                        product.is_best_seller
+                        if product else False
+                    ),
+
+                    "is_available_on_order": (
+                        product.is_available_on_order
+                        if product else False
+                    ),
+
+                    "created_at": (
+                        product.created_at
+                        if product else None
+                    ),
+
+                    "updated_at": (
+                        product.updated_at
+                        if product else None
+                    )
+                }
+            })
+
+        data.append({
+            "order_id": order.id,
+
+            "user": {
+                "id": order.user.id,
+                "username": order.user.username,
+                "email": order.user.email,
+                "phone": order.user.phone,
+                "business_name": order.user.business_name,
+                "role": order.user.role,
+                "status": order.user.status,
+
+                "image": (
+                    request.build_absolute_uri(
+                        order.user.image.url
+                    )
+                    if order.user.image else None
+                ),
+
+                "created_at": order.user.created_at
+            },
+            "address": {
+                "id": (
+                    order.address.id
+                    if order.address else None
+                ),
+                "full_name": (
+                    order.address.full_name
+                    if order.address else None
+                ),
+                "mobile_number": (
+                    order.address.mobile_number
+                    if order.address else None
+                ),
+                "address_line_1": (
+                    order.address.address_line_1
+                    if order.address else None
+                ),
+                "address_line_2": (
+                    order.address.address_line_2
+                    if order.address else None
+                ),
+                "city": (
+                    order.address.city
+                    if order.address else None
+                ),
+                "state": (
+                    order.address.state
+                    if order.address else None
+                ),
+                "pincode": (
+                    order.address.pincode
+                    if order.address else None
+                ),
+            },
+            "payment": {
+                "payment_method": order.payment_method,
+                "transaction_id": order.transaction_id,
+                "transaction_screenshot": (
+                    request.build_absolute_uri(
+                        order.transaction_screenshot.url
+                    )
+                    if order.transaction_screenshot else None
+                ),
+
+                "payment_status": order.payment_status,
+            },
+            "order": {
+                "total_amount": str(order.total_amount),
+                "order_status": order.order_status,
+                "created_at": order.created_at,
+            },
+            "products": products
+        })
+    return JsonResponse({
+        "status": True,
+        "count": len(data),
+        "filter_role": role if role else "all",
+        "data": data
+    })
+
+############################### Order_List B2B OR Retailer Wise  Filter ############################
+    
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def order_list_filter(request):
+
+    page = int(request.GET.get("page", 1))
+    page_size = int(request.GET.get("page_size", 10))
+
+    # Get role filter
+    role = request.GET.get("role")
+
+    orders = (
+        Order.objects
+        .all()
+        .prefetch_related(
+            'items__product',
+            'items__product__images'
+        )
+        .order_by('-id')
+    )
+
+    # B2B / Retail filter
+    if role:
+        orders = orders.filter(user__role__iexact=role)
+
+    paginator = Paginator(orders, page_size)
+
+    current_page = paginator.get_page(page)
+
+    data = []
+
+    for order in current_page:
+
+        products = []
+
+        for item in order.items.all():
+
+            product = item.product
+
+            product_images = []
+
+            if product:
+                for img in product.images.all():
+
+                    product_images.append(
+                        request.build_absolute_uri(
+                            img.image.url
+                        )
+                    )
+
+            products.append({
+                "order_item_id": item.id,
+                "quantity": item.quantity,
+                "price": str(item.price),
+
+                "product": {
+                    "id": product.id if product else None,
+                    "name": product.name if product else None,
+                    "item_code": product.item_code if product else None,
+                    "retail": str(product.retail) if product else None,
+
+                    "image": (
+                        request.build_absolute_uri(
+                            product.image.url
+                        )
+                        if product and product.image
+                        else None
+                    ),
+
+                    "images": product_images
+                }
+            })
+
+        data.append({
+            "order_id": order.id,
+            "status": order.order_status,
+            "transaction_id": order.transaction_id,
+
+            "customer_name": (
+                order.address.full_name
+                if order.address else ""
+            ),
+
+            "business_name": order.user.business_name,
+            "email": order.user.email,
+            "phone": order.user.phone,
+            "role": order.user.role,
+
+            "total_amount": str(order.total_amount),
+            "payment_method": order.payment_method,
+
+            "address": {
+                "full_name": (
+                    order.address.full_name
+                    if order.address else ""
+                ),
+                "mobile_number": (
+                    order.address.mobile_number
+                    if order.address else ""
+                ),
+                "alternate_mobile_number": (
+                    order.address.alternate_mobile_number
+                    if order.address else ""
+                ),
+                "address_line_1": (
+                    order.address.address_line_1
+                    if order.address else ""
+                ),
+                "address_line_2": (
+                    order.address.address_line_2
+                    if order.address else ""
+                ),
+                "city": (
+                    order.address.city
+                    if order.address else ""
+                ),
+                "state": (
+                    order.address.state
+                    if order.address else ""
+                ),
+                "pincode": (
+                    order.address.pincode
+                    if order.address else ""
+                ),
+            },
+
+            "products": products,
+
+            "created_at": order.created_at,
+        })
+
+    return JsonResponse({
+        "status": True,
+        "total_orders": paginator.count,
+        "total_pages": paginator.num_pages,
+        "current_page": page,
+        "page_size": page_size,
+        "has_next": current_page.has_next(),
+        "has_previous": current_page.has_previous(),
         "data": data
     })

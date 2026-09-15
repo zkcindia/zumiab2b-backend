@@ -278,3 +278,13 @@ class DisplaySetting(models.Model):
 
     def __str__(self):
         return "Display Settings"
+    
+
+class Inquiry(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.CASCADE,related_name="inquiries")
+    product = models.ForeignKey(Product,on_delete=models.CASCADE,related_name="inquiries")
+    message = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.user.username} - {self.product.name}"

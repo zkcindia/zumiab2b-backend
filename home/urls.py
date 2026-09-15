@@ -32,6 +32,7 @@ urlpatterns = [
     path('publish-brand/', publish_brand),
     path('publish-brand/<slug:slug>/', publish_brand),
     path("product/", product_api),          # GET all + POST
+    path("product-crud/<slug:slug>/", product_api),
     path("product/<slug:slug>/", product_api_by_slug),
     path('product-status/<slug:slug>/', product_status_api, name='product-status-api'),
     path('publish-products/', product_list),
@@ -83,6 +84,8 @@ urlpatterns = [
 
     path("display-settings/",get_display_settings,name="get_display_settings"),
     path("display-settings/update/",update_display_settings,name="update_display_settings"),
+    path("quotes/", quotes_api, name="quotes_api"),
+    path("inquiry/", inquiry_api, name="inquiry_api"),
 
     # path("last-order-details/",views.get_last_order_details,name="last-order-details"),/
 

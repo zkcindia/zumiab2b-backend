@@ -27,6 +27,7 @@ import csv
 from django.http import StreamingHttpResponse, HttpResponse
 from django.db import connection
 import logging
+from .utils import compress_image
 
 
 User = get_user_model()
@@ -560,6 +561,11 @@ def publish_brand(request, slug=None):
 ################################################## Product API #####################################################################
 from django.db.models import Case, When, Value, IntegerField
 
+def get_cloudflare_image_url(image):
+    if image and image.name:
+        return f"https://imagesb2b.zumiahomes.com/{image.name}"
+    return None
+
 @api_view(["GET", "POST","PATCH","DELETE"])
 # @permission_classes([IsAuthenticated])
 def product_api(request, slug=None):
@@ -574,7 +580,9 @@ def product_api(request, slug=None):
                     "category"
                 ).get(slug=slug)
 
-                images = ProductImage.objects.filter(product=product)
+                images = ProductImage.objects.filter(
+                    product=product
+                )
 
                 return JsonResponse({
                     "status": True,
@@ -590,12 +598,10 @@ def product_api(request, slug=None):
                             "name": product.brand.name
                         } if product.brand else None,
 
-
                         "category": {
                             "id": product.category.id,
                             "name": product.category.name
                         } if product.category else None,
-
 
                         "description": product.description,
 
@@ -613,17 +619,15 @@ def product_api(request, slug=None):
 
                         "is_active": product.is_active,
 
-
                         "images": [
                             {
                                 "id": img.id,
-                                "image": request.build_absolute_uri(img.image.url)
+                                "image": get_cloudflare_image_url(img.image)
                             }
                             for img in images
                         ]
                     }
                 })
-
 
             except Product.DoesNotExist:
 
@@ -633,29 +637,71 @@ def product_api(request, slug=None):
                 }, status=404)
 
 
-
         # ================= PRODUCT LIST =================
 
         limit = int(request.GET.get("limit", 10))
         offset = int(request.GET.get("offset", 0))
 
+        # ================= STATUS FILTER =================
+
+        status_filter = request.GET.get("status", "all")
 
         products = Product.objects.select_related(
             "brand",
             "category"
-        ).filter(
-            status="Publish"
-        ).order_by("-id")
+        ).annotate(
+            status_order=Case(
+                When(status="Publish", then=Value(1)),
+                When(status="Unpublish", then=Value(2)),
+                default=Value(3),
+                output_field=IntegerField(),
+            )
+        ).order_by("status_order", "-id")
 
+
+        # ================= APPLY STATUS FILTER =================
+
+        if status_filter.lower() == "publish":
+
+            products = products.filter(
+                status="Publish"
+            )
+
+        elif status_filter.lower() == "unpublish":
+
+            products = products.filter(
+                status="Unpublish"
+            )
+
+        elif status_filter.lower() == "all":
+
+            # No filter
+            pass
+
+        else:
+
+            return JsonResponse({
+                "status": False,
+                "message": "Invalid status. Use all, Publish or Unpublish."
+            }, status=400)
+
+
+        # ================= TOTAL =================
 
         total = products.count()
 
 
-        page_data = products[offset:offset + limit]
+        # ================= PAGINATION =================
+
+        page_data = products[
+            offset:offset + limit
+        ]
 
 
         result = []
 
+
+        # ================= BUILD RESPONSE =================
 
         for product in page_data:
 
@@ -674,24 +720,19 @@ def product_api(request, slug=None):
 
                 "item_code": product.item_code,
 
-
                 "brand": {
                     "id": product.brand.id,
                     "name": product.brand.name
                 } if product.brand else None,
-
 
                 "category": {
                     "id": product.category.id,
                     "name": product.category.name
                 } if product.category else None,
 
-
                 "description": product.description,
 
-
                 "status": product.status,
-
 
                 "mrp": str(product.mrp),
 
@@ -699,20 +740,16 @@ def product_api(request, slug=None):
 
                 "b2b": str(product.b2b),
 
-
                 "sku": product.sku,
-
 
                 "stock_quantity": product.stock_quantity,
 
-
                 "min_order_qty": product.min_order_qty,
-
 
                 "images": [
                     {
                         "id": img.id,
-                        "image": request.build_absolute_uri(img.image.url)
+                        "image": get_cloudflare_image_url(img.image)
                     }
                     for img in images
                 ]
@@ -720,11 +757,15 @@ def product_api(request, slug=None):
             })
 
 
+        # ================= RESPONSE =================
+
         return JsonResponse({
 
             "status": True,
 
             "total": total,
+
+            "status_filter": status_filter,
 
             "limit": limit,
 
@@ -780,13 +821,15 @@ def product_api(request, slug=None):
 
         for image in request.FILES.getlist("images"):
 
+            compressed_image = compress_image(image)
+
             obj = ProductImage.objects.create(
                 product=product,
-                image=image
+                image=compressed_image
             )
 
             image_urls.append(
-                request.build_absolute_uri(obj.image.url)
+                compressed_image = compress_image(image)
             )
 
         return JsonResponse({
@@ -957,9 +1000,11 @@ def product_api(request, slug=None):
 
             for img in new_images:
 
+                compressed_image = compress_image(img)
+
                 ProductImage.objects.create(
                     product=product,
-                    image=img,
+                    image=compressed_image,
                 )
 
             images = (
@@ -1026,9 +1071,7 @@ def product_api(request, slug=None):
                         "images": [
                             {
                                 "id": image.id,
-                                "url": request.build_absolute_uri(
-                                    image.image.url
-                                ),
+                                "url": get_cloudflare_image_url(image.image),
                             }
                             for image in images
                         ],
@@ -1075,62 +1118,46 @@ def product_api(request, slug=None):
 def product_api_by_slug(request, slug=None):
 
     if request.method == "GET":
-
         if not slug:
             return JsonResponse({
                 "status": False,
                 "message": "Slug is required"
             }, status=400)
 
-
         try:
-
             product = Product.objects.select_related(
                 "brand",
                 "category"
             ).get(slug=slug)
 
-
             images = ProductImage.objects.filter(
                 product=product
             )
-
 
             # ======================
             # DISPLAY SETTINGS
             # ======================
             display, _ = DisplaySetting.objects.get_or_create(id=1)
 
-
             # ======================
             # BASIC PRODUCT DATA
             # ======================
             product_data = {
-
                 "id": product.id,
-
                 "name": product.name,
-
                 "slug": product.slug,
-
                 "status": product.status,
-
                 "min_order_qty": product.min_order_qty,
-
                 "is_active": product.is_active,
-
-
                 "images": [
                     {
                         "id": img.id,
-                        "image": request.build_absolute_uri(img.image.url)
+                        "image": f"https://imagesb2b.zumiahomes.com/{img.image.name}"
                     }
                     for img in images
                 ]
 
             }
-
-
             # ======================
             # DISPLAY SETTING FIELDS
             # ======================
@@ -1138,26 +1165,20 @@ def product_api_by_slug(request, slug=None):
             if display.item_code:
                 product_data["item_code"] = product.item_code
 
-
             if display.mrp:
                 product_data["mrp"] = str(product.mrp)
-
 
             if display.retail:
                 product_data["retail"] = str(product.retail)
 
-
             if display.b2b:
                 product_data["b2b"] = str(product.b2b)
-
 
             if display.sku:
                 product_data["sku"] = product.sku
 
-
             if display.stock_quantity:
                 product_data["stock_quantity"] = product.stock_quantity
-
 
             if display.brand:
                 product_data["brand"] = (
@@ -1166,16 +1187,12 @@ def product_api_by_slug(request, slug=None):
                         "id": product.brand.id,
                         "name": product.brand.name
                     }
-
                     if product.brand else None
 
                 )
 
-
             if display.description:
                 product_data["description"] = product.description
-
-
 
             # Category always visible
             product_data["category"] = (
@@ -1184,29 +1201,16 @@ def product_api_by_slug(request, slug=None):
                     "id": product.category.id,
                     "name": product.category.name
                 }
-
                 if product.category else None
-
             )
-
-
             return JsonResponse({
-
                 "status": True,
-
                 "data": product_data
-
             })
-
-
         except Product.DoesNotExist:
-
             return JsonResponse({
-
                 "status": False,
-
                 "message": "Product not found"
-
             }, status=404)
         
 ##################################################################  product status changes  #####################################################
@@ -1325,7 +1329,7 @@ def product_list(request):
         for img in product_images:
             if img.image:
                 image_list.append(
-                    request.build_absolute_uri(img.image.url)
+                    f"https://imagesb2b.zumiahomes.com/{img.image.name}"
                 )
 
         product_data = {
@@ -1888,7 +1892,7 @@ def my_orders(request):
             if product:
                 for img in product.images.all():
                     product_images.append(
-                        request.build_absolute_uri(img.image.url)
+                        f"https://imagesb2b.zumiahomes.com/{img.image.name}"
                     )
 
             products.append({
@@ -2879,7 +2883,7 @@ def get_cart(request):
         images = ProductImage.objects.filter(product=product)
 
         image_list = [
-            request.build_absolute_uri(img.image.url)
+            f"https://imagesb2b.zumiahomes.com/{img.image.name}"
             for img in images
             if img.image
         ]
@@ -3540,7 +3544,7 @@ def buy_now(request):
     address_id = request.data.get("address_id")
     product_id = request.data.get("product_id")
     quantity = int(request.data.get("quantity", 1))
-    remarks = request.data.get("remarks")
+    remarks = request.data.get("remarks", None)
 
     print(request.data)
     print("Remarks:", remarks)
@@ -3580,7 +3584,7 @@ def buy_now(request):
     order = Order.objects.create(
         user=user,
         address=address,
-        remarks = remarks,
+        remarks=remarks,
         total_amount=total_amount,
         payment_method="COD"
     )
@@ -3616,6 +3620,10 @@ def create_upi_order(request):
     product_id = request.data.get("product_id")
     quantity = int(request.data.get("quantity", 1))
     transaction_screenshot = request.FILES.get("transaction_screenshot")
+
+    # Remarks is OPTIONAL
+    remarks = request.data.get("remarks", None)
+
     print(address_id)
     print(total_amount)
     print(payment_method)
@@ -3623,13 +3631,14 @@ def create_upi_order(request):
     print(product_id)
     print(quantity)
     print(transaction_screenshot)
+    print("Remarks:", remarks)
 
     if not address_id:
         return JsonResponse({
             "status": False,
             "message": "Address is required"
         }, status=400)
-    
+
     if not product_id:
         return JsonResponse({
             "status": False,
@@ -3665,28 +3674,32 @@ def create_upi_order(request):
         id=address_id,
         user=user
     )
+
     product = get_object_or_404(
         Product,
         id=product_id,
         is_active=True
     )
+
     if quantity < 1:
         return JsonResponse({
             "status": False,
             "message": "Quantity must be greater than 0"
         }, status=400)
-    
+
     total_amount = product.retail * quantity
 
     order = Order.objects.create(
         user=user,
         address=address,
+        remarks=remarks,
         total_amount=total_amount,
         payment_method="UPI",
         payment_status=False,  # Admin verifies later
         transaction_id=transaction_id,
         transaction_screenshot=transaction_screenshot
     )
+
     OrderItem.objects.create(
         order=order,
         product=product,
@@ -3703,6 +3716,7 @@ def create_upi_order(request):
         "order_status": order.order_status,
         "payment_status": order.payment_status,
         "total_amount": str(order.total_amount),
+        "remarks": order.remarks,
         "transaction_screenshot": request.build_absolute_uri(
             order.transaction_screenshot.url
         ) if order.transaction_screenshot else None
@@ -4948,3 +4962,77 @@ def get_cart_item_count(request):
         },
         status=200
     )
+
+################################# Inquart api post#######################################
+
+from .models import Inquiry, Product
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def inquiry_api(request):
+
+    product_id = request.data.get("product")
+    message = request.data.get("message")
+
+    if not product_id:
+        return Response({
+            "status": False,
+            "message": "Product is required."
+        }, status=400)
+
+    if not message:
+        return Response({
+            "status": False,
+            "message": "Message is required."
+        }, status=400)
+
+    # Check product exists
+    product = get_object_or_404(Product, id=product_id)
+
+    # Create inquiry for logged-in user
+    inquiry = Inquiry.objects.create(
+        user=request.user,
+        product=product,
+        message=message
+    )
+
+    return Response({
+        "status": True,
+        "message": "Inquiry created successfully.",
+        "data": {
+            "id": inquiry.id,
+            "user": inquiry.user.id,
+            "product": inquiry.product.id,
+            "message": inquiry.message,
+            "created_at": inquiry.created_at
+        }
+    }, status=201)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def quotes_api(request):
+
+    inquiries = Inquiry.objects.select_related(
+        "user",
+        "product"
+    ).order_by("-created_at")
+
+    data = []
+
+    for inquiry in inquiries:
+        data.append({
+            "id": inquiry.id,
+            "company": inquiry.user.username,
+            "product": inquiry.product.name,
+            "email": inquiry.user.email,
+            "phone": inquiry.user.phone,
+            "message": inquiry.message
+        })
+
+    return Response({
+        "status": True,
+        "message": "Quotes fetched successfully.",
+        "data": data
+    }, status=200)

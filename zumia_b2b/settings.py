@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'home',
     'superadmin',
+    'storages',
 ]
 
 MIDDLEWARE = [
@@ -85,10 +86,21 @@ ASGI_APPLICATION = 'zumia_b2b.asgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': config("DB_NAME"),
+        'USER': config("DB_USER"),
+        'PASSWORD': config("DB_PASSWORD"),
+        'HOST': config("DB_HOST"),
+        'PORT': config("DB_PORT")
     }
 }
+
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.sqlite3',
+#         'NAME': BASE_DIR / 'db.sqlite3',
+#     }
+# }
 
 
 # Password validation
@@ -152,11 +164,11 @@ REST_FRAMEWORK = {
 
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 EMAIL_HOST = 'smtp.gmail.com'
-EMAIL_HOST_USER = 'lclightings6@gmail.com'
+EMAIL_HOST_USER = config('EMAIL_HOST_USER')
 #EMAIL_HOST_PASSWORD = 'rsezvmmcauhkkckf'           #tapas kumar
-EMAIL_HOST_PASSWORD = 'fkcmqbpngulwioxa'
+EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD')
 # EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD')           #lightcircle 
-EMAIL_PORT = 587
+EMAIL_PORT = config('EMAIL_PORT')
 EMAIL_USE_TLS = True
 EMAIL_USE_SSL = False 
 
@@ -186,3 +198,32 @@ CORS_ALLOWED_ORIGINS = [
 CSRF_TRUSTED_ORIGINS = [
         'https://zumiab2b.zumiahomes.com'
 ]
+
+STORAGES = {
+    "default": {
+        "BACKEND": "storages.backends.s3.S3Storage",
+        "OPTIONS": {
+            "access_key": config("AWS_ACCESS_KEY_ID"),
+            "secret_key": config("AWS_SECRET_ACCESS_KEY"),
+            "bucket_name": config("AWS_STORAGE_BUCKET_NAME"),
+            "endpoint_url": config("AWS_S3_ENDPOINT_URL"),
+            "region_name": config("AWS_S3_REGION_NAME", "auto"),
+        },
+    },
+
+    "staticfiles": {
+        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+    },
+}
+
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": "redis://103.189.89.74:6379/1",
+        "OPTIONS": {
+            "CLIENT_CLASS":"django_redis.client.DefaultClient"
+        },
+        "TIMEOUT": 60 * 60 * 24 * 30
+        # "KEY_PREFIX": "myproject"
+    }
+}

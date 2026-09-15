@@ -29,6 +29,9 @@ urlpatterns = [
     path('pending-upi-order-count/',pending_upi_order_count,name='pending-upi-order-count'),
     path("last-order-details/",views.get_last_order_details,name="last-order-details"),
 
+    path("my_upi_orders_filter/", views.my_upi_orders_filter, name="my_upi_orders_filter"),
+    path("order-list-filter/", views.order_list_filter, name="order_list_filter"),
+
     path("upi-qr/", generate_upi_qr),     # ooooooooooooooooooooooooooookkkkkkk
 
     path('search-items/', views.product_search, name='search-items'),
