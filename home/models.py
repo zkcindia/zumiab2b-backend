@@ -132,7 +132,7 @@ class Brand(models.Model):
 
 class Product(models.Model):
     name = models.CharField(max_length=255)
-    slug = models.SlugField(unique=True,blank=True,null=True)
+    slug = models.SlugField(blank=True,null=True)
     item_code = models.CharField(max_length=100, unique=True)
     brand = models.ForeignKey(Brand,on_delete=models.SET_NULL,null=True,blank=True)
     description = models.TextField(null=True, blank=True)

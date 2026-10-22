@@ -789,12 +789,26 @@ def product_api(request, slug=None):
         ).first()
 
         name = request.data.get("name")
+        item_code = request.data.get("item_code")
 
+        # ================= CHECK DUPLICATE ITEM CODE =================
+        if item_code and Product.objects.filter(
+            item_code=item_code
+        ).exists():
+            return JsonResponse({
+                "status": False,
+                "message": f"Item code '{item_code}' already exists. Please use a different item code.",
+                "errors": {
+                    "item_code": ["This item code already exists."]
+                }
+            }, status=409)
+
+        # ================= CREATE PRODUCT =================
         product = Product.objects.create(
             name=name,
             slug=slugify(name),
 
-            item_code=request.data.get("item_code"),
+            item_code=item_code,
 
             brand=brand,
             category=category,
@@ -813,7 +827,9 @@ def product_api(request, slug=None):
             min_order_qty=request.data.get("min_order_qty") or 1,
 
             is_best_seller=request.data.get("is_best_seller", False),
-            is_available_on_order=request.data.get("is_available_on_order", False),
+            is_available_on_order=request.data.get(
+                "is_available_on_order", False
+            ),
             is_active=request.data.get("is_active", True),
         )
 
@@ -829,7 +845,7 @@ def product_api(request, slug=None):
             )
 
             image_urls.append(
-                compressed_image = compress_image(image)
+                get_cloudflare_image_url(obj.image)
             )
 
         return JsonResponse({
@@ -865,7 +881,7 @@ def product_api(request, slug=None):
 
                 "images": image_urls
             }
-        })
+        }, status=201)
 
     if request.method == "PATCH":
 
