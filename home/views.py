@@ -570,6 +570,9 @@ def get_cloudflare_image_url(image):
 # @permission_classes([IsAuthenticated])
 def product_api(request, slug=None):
 
+    # =========================================================
+    # GET
+    # =========================================================
     if request.method == "GET":
 
         # ================= SINGLE PRODUCT =================
@@ -590,7 +593,6 @@ def product_api(request, slug=None):
                         "id": product.id,
                         "name": product.name,
                         "slug": product.slug,
-
                         "item_code": product.item_code,
 
                         "brand": {
@@ -604,25 +606,21 @@ def product_api(request, slug=None):
                         } if product.category else None,
 
                         "description": product.description,
-
                         "status": product.status,
-
                         "mrp": str(product.mrp),
                         "retail": str(product.retail),
                         "b2b": str(product.b2b),
-
                         "sku": product.sku,
-
                         "stock_quantity": product.stock_quantity,
-
                         "min_order_qty": product.min_order_qty,
-
                         "is_active": product.is_active,
 
                         "images": [
                             {
                                 "id": img.id,
-                                "image": get_cloudflare_image_url(img.image)
+                                "image": get_cloudflare_image_url(
+                                    img.image
+                                )
                             }
                             for img in images
                         ]
@@ -630,17 +628,28 @@ def product_api(request, slug=None):
                 })
 
             except Product.DoesNotExist:
-
                 return JsonResponse({
                     "status": False,
                     "message": "Product not found"
                 }, status=404)
 
-
         # ================= PRODUCT LIST =================
 
-        limit = int(request.GET.get("limit", 10))
-        offset = int(request.GET.get("offset", 0))
+        try:
+            limit = int(request.GET.get("limit", 10))
+            offset = int(request.GET.get("offset", 0))
+
+            if limit < 1 or offset < 0:
+                raise ValueError
+
+        except (ValueError, TypeError):
+            return JsonResponse({
+                "status": False,
+                "message": (
+                    "Invalid pagination. "
+                    "limit must be greater than 0 and offset must be 0 or greater."
+                )
+            }, status=400)
 
         # ================= STATUS FILTER =================
 
@@ -658,66 +667,120 @@ def product_api(request, slug=None):
             )
         ).order_by("status_order", "-id")
 
-
-        # ================= APPLY STATUS FILTER =================
-
         if status_filter.lower() == "publish":
-
-            products = products.filter(
-                status="Publish"
-            )
+            products = products.filter(status="Publish")
 
         elif status_filter.lower() == "unpublish":
-
-            products = products.filter(
-                status="Unpublish"
-            )
+            products = products.filter(status="Unpublish")
 
         elif status_filter.lower() == "all":
-
-            # No filter
             pass
 
         else:
-
             return JsonResponse({
                 "status": False,
-                "message": "Invalid status. Use all, Publish or Unpublish."
+                "message": (
+                    "Invalid status. Use all, Publish or Unpublish."
+                )
             }, status=400)
 
+        # ================= CATEGORY FILTER =================
+        # Supports:
+        # ?category=all
+        # ?category_id=1
+        # ?category_ids=1,2,3
 
-        # ================= TOTAL =================
+        category_values = (
+            request.GET.get("category_ids")
+            or request.GET.get("category_id")
+            or request.GET.get("category")
+        )
+
+        if category_values and category_values.strip().lower() != "all":
+            try:
+                category_ids = [
+                    int(value.strip())
+                    for value in category_values.split(",")
+                    if value.strip()
+                ]
+
+                if not category_ids or any(
+                    category_id < 1 for category_id in category_ids
+                ):
+                    raise ValueError
+
+            except ValueError:
+                return JsonResponse({
+                    "status": False,
+                    "message": (
+                        "Invalid category IDs. "
+                        "Use a single ID, comma-separated IDs, or all."
+                    )
+                }, status=400)
+
+            products = products.filter(
+                category_id__in=category_ids
+            )
+
+        # ================= BRAND FILTER =================
+        # Supports:
+        # ?brand=all
+        # ?brand_id=5
+        # ?brand_ids=2,5,8
+
+        brand_values = (
+            request.GET.get("brand_ids")
+            or request.GET.get("brand_id")
+            or request.GET.get("brand")
+        )
+
+        if brand_values and brand_values.strip().lower() != "all":
+            try:
+                brand_ids = [
+                    int(value.strip())
+                    for value in brand_values.split(",")
+                    if value.strip()
+                ]
+
+                if not brand_ids or any(
+                    brand_id < 1 for brand_id in brand_ids
+                ):
+                    raise ValueError
+
+            except ValueError:
+                return JsonResponse({
+                    "status": False,
+                    "message": (
+                        "Invalid brand IDs. "
+                        "Use a single ID, comma-separated IDs, or all."
+                    )
+                }, status=400)
+
+            products = products.filter(
+                brand_id__in=brand_ids
+            )
+
+        # ================= TOTAL AFTER FILTERING =================
 
         total = products.count()
 
-
         # ================= PAGINATION =================
 
-        page_data = products[
-            offset:offset + limit
-        ]
-
-
-        result = []
-
+        page_data = products[offset:offset + limit]
 
         # ================= BUILD RESPONSE =================
 
-        for product in page_data:
+        result = []
 
+        for product in page_data:
             images = ProductImage.objects.filter(
                 product=product
             )
 
-
             result.append({
-
                 "id": product.id,
-
                 "name": product.name,
-
                 "slug": product.slug,
-
                 "item_code": product.item_code,
 
                 "brand": {
@@ -731,19 +794,12 @@ def product_api(request, slug=None):
                 } if product.category else None,
 
                 "description": product.description,
-
                 "status": product.status,
-
                 "mrp": str(product.mrp),
-
                 "retail": str(product.retail),
-
                 "b2b": str(product.b2b),
-
                 "sku": product.sku,
-
                 "stock_quantity": product.stock_quantity,
-
                 "min_order_qty": product.min_order_qty,
 
                 "images": [
@@ -753,28 +809,18 @@ def product_api(request, slug=None):
                     }
                     for img in images
                 ]
-
             })
-
 
         # ================= RESPONSE =================
 
         return JsonResponse({
-
             "status": True,
-
             "total": total,
-
             "status_filter": status_filter,
-
             "limit": limit,
-
             "offset": offset,
-
             "has_more": (offset + limit) < total,
-
             "data": result
-
         })
 
     # ================= POST =================
